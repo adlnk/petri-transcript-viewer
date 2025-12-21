@@ -1,6 +1,7 @@
 <script lang="ts">
 	import '../app.css';
 	import { browser } from '$app/environment';
+	import { base } from '$app/paths';
 	import { isDarkMode, initializeTheme, toggleTheme } from '$lib/shared/theme';
 	import { onMount } from 'svelte';
 	import PasswordGate from '$lib/client/components/auth/PasswordGate.svelte';
@@ -26,7 +27,7 @@
 		<div class="min-h-screen bg-base-200">
 			<div class="navbar bg-base-100 shadow-sm">
 				<div class="navbar-start">
-					<a href="/" class="btn btn-ghost text-xl">Petri Transcript Viewer</a>
+					<a href="{base}/" class="btn btn-ghost text-xl">Petri Transcript Viewer</a>
 				</div>
 				<div class="navbar-end">
 					<label class="swap swap-rotate mr-4">
