@@ -14,7 +14,7 @@ const config = {
 					pages: 'build',
 					assets: 'build',
 					fallback: '404.html',
-					strict: true
+					strict: false
 				})
 			: adapterNode({
 					out: 'build'

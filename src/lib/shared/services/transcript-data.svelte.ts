@@ -2,6 +2,23 @@ import type { TranscriptDisplay, TableRow } from '$lib/shared/types';
 import { buildFolderTreeFromTranscripts } from '$lib/client/utils/client-tree-builder';
 import { debugLog } from '$lib/client/utils/debug';
 
+// Check if we're in static mode
+const isStaticMode = import.meta.env.VITE_STATIC_MODE === 'true';
+
+// Cache for static bundled data
+let staticDataCache: { transcripts: Record<string, any>; metadata: any[] } | null = null;
+
+async function loadStaticBundledData() {
+  if (staticDataCache) return staticDataCache;
+
+  const response = await fetch('/data/bundled-transcripts.json');
+  if (!response.ok) {
+    throw new Error(`Failed to load bundled data: ${response.status}`);
+  }
+  staticDataCache = await response.json();
+  return staticDataCache;
+}
+
 export interface LoadDataResult {
   transcripts: TranscriptDisplay[];
   folderTree: TableRow[];
@@ -65,12 +82,33 @@ export function createTranscriptDataLoader() {
   }
 
   async function loadDataBulk(rootDirParam: string, includeErrors: boolean) {
-    // Always load the flat transcript list (single source of truth)
-    // Both views will be derived from this data client-side
+    // Static mode: use bundled data
+    if (isStaticMode) {
+      debugLog('[DEBUG] Loading from bundled static data');
+      const bundledData = await loadStaticBundledData();
+      let transcriptList = bundledData.metadata || [];
+
+      // Filter by subdirectory if specified
+      if (rootDirParam) {
+        const subdirPath = decodeURIComponent(rootDirParam.replace(/^&?rootDir=/, ''));
+        transcriptList = transcriptList.filter((t: any) =>
+          t._filePath.startsWith(subdirPath + '/') || t._filePath.startsWith(subdirPath)
+        );
+      }
+
+      rawTranscripts = transcriptList;
+      loadingStats = null;
+      loadingErrors = [];
+
+      debugLog('[DEBUG] Static data loaded:', { transcriptCount: rawTranscripts.length });
+      return;
+    }
+
+    // Node mode: use API endpoint
     const url = `/api/transcripts/list${rootDirParam ? `?${rootDirParam.slice(1)}` : ''}`;
-    debugLog('🌐 [DEBUG] Fetching unified data from:', url);
+    debugLog('[DEBUG] Fetching unified data from:', url);
     const response = await fetch(url);
-    debugLog('📡 [DEBUG] Response:', response.status, response.ok);
+    debugLog('[DEBUG] Response:', response.status, response.ok);
 
     if (!response.ok) {
       throw new Error(`Failed to load transcripts: ${response.status} ${response.statusText}`);
@@ -81,7 +119,7 @@ export function createTranscriptDataLoader() {
     loadingStats = null;
     loadingErrors = [];
 
-    debugLog('✅ [DEBUG] Data loaded successfully:', {
+    debugLog('[DEBUG] Data loaded successfully:', {
       transcriptCount: rawTranscripts.length,
       hasStats: !!loadingStats,
       errorCount: loadingErrors.length

@@ -263,6 +263,21 @@ export const BUNDLE_TRANSCRIPT_COUNT = ${metadataList.length};
   fs.writeFileSync(outputPath, output);
 
   console.log(`\nGenerated: ${outputPath}`);
+
+  // Also generate static JSON file for client-side use
+  const staticDir = path.join(__dirname, '../static/data');
+  fs.mkdirSync(staticDir, { recursive: true });
+
+  const staticData = {
+    transcripts: fullTranscripts,
+    metadata: metadataList,
+    generatedAt: new Date().toISOString()
+  };
+
+  const staticJsonPath = path.join(staticDir, 'bundled-transcripts.json');
+  fs.writeFileSync(staticJsonPath, JSON.stringify(staticData));
+
+  console.log(`Generated: ${staticJsonPath}`);
   console.log(`Bundle contains ${metadataList.length} transcripts`);
 }
 

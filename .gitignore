@@ -1,3 +1,6 @@
 node_modules/
 .svelte-kit/
 build/
+
+# Generated static JSON bundle (created by bundle-transcripts.ts)
+static/data/

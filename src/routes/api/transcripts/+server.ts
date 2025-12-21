@@ -1,9 +1,9 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { BUNDLED_TRANSCRIPTS, BUNDLE_TRANSCRIPT_COUNT } from '$lib/server/data/bundled-transcripts';
+import { BUNDLED_TRANSCRIPTS } from '$lib/server/data/bundled-transcripts';
 
-// Check if we're in static mode (bundled data available)
-const isStaticMode = BUNDLE_TRANSCRIPT_COUNT > 0;
+// Check if we're in static mode using build-time env var
+const isStaticMode = import.meta.env.VITE_STATIC_MODE === 'true';
 
 // Dynamic imports for node mode (only loaded when needed)
 let validateFilePath: typeof import('$lib/server/utils/server-file-utils').validateFilePath;

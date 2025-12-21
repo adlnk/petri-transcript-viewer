@@ -1,5 +1,22 @@
 import type { TranscriptMetadata, TranscriptDisplay } from '$lib/shared/types';
 
+// Check if we're in static mode
+const isStaticMode = import.meta.env.VITE_STATIC_MODE === 'true';
+
+// Cache for static bundled data
+let staticDataCache: { transcripts: Record<string, any>; metadata: any[] } | null = null;
+
+async function getStaticBundledData() {
+  if (staticDataCache) return staticDataCache;
+
+  const response = await fetch('/data/bundled-transcripts.json');
+  if (!response.ok) {
+    throw new Error(`Failed to load bundled data: ${response.status}`);
+  }
+  staticDataCache = await response.json();
+  return staticDataCache;
+}
+
 export interface TranscriptLoaderState {
   metadata: TranscriptMetadata | null;
   transcript: TranscriptDisplay | null;
@@ -19,19 +36,35 @@ export function createTranscriptLoader(filePath: string) {
 
   const loadMetadata = async (): Promise<TranscriptMetadata | null> => {
     if (metadata) return metadata;
-    
+
     metadataLoading = true;
     metadataError = null;
-    
+
     try {
+      // Static mode: use bundled data
+      if (isStaticMode) {
+        const bundledData = await getStaticBundledData();
+        const transcriptData = bundledData.transcripts[filePath];
+
+        if (!transcriptData) {
+          metadataError = `Transcript at "${filePath}" not found`;
+          return null;
+        }
+
+        // Extract metadata from the full transcript data
+        const { transcript: _fullTranscript, ...meta } = transcriptData;
+        metadata = meta;
+        return metadata;
+      }
+
+      // Node mode: use API endpoint
       const url = `/api/transcripts?filePath=${encodeURIComponent(filePath)}&metadataOnly=true`;
       const response = await fetch(url);
-      
+
       if (!response.ok) {
         if (response.status === 404) {
           metadataError = `Transcript at "${filePath}" not found`;
         } else {
-          // Try to extract server error details for easier debugging
           let details = '';
           try {
             const errJson = await response.clone().json();
@@ -46,7 +79,7 @@ export function createTranscriptLoader(filePath: string) {
         }
         return null;
       }
-      
+
       const result = await response.json();
       if (result.success) {
         metadata = result.data;
@@ -64,19 +97,39 @@ export function createTranscriptLoader(filePath: string) {
 
   const loadTranscript = async (): Promise<TranscriptDisplay | null> => {
     if (transcript) return transcript;
-    
+
     transcriptLoading = true;
     transcriptError = null;
-    
+
     try {
+      // Static mode: use bundled data
+      if (isStaticMode) {
+        const bundledData = await getStaticBundledData();
+        const transcriptData = bundledData.transcripts[filePath];
+
+        if (!transcriptData) {
+          transcriptError = `Transcript at "${filePath}" not found`;
+          return null;
+        }
+
+        transcript = transcriptData;
+
+        // If metadata wasn't loaded yet, extract it
+        if (!metadata && transcript && 'transcript' in transcript && transcript.transcript?.metadata) {
+          metadata = transcript.transcript.metadata;
+        }
+
+        return transcript;
+      }
+
+      // Node mode: use API endpoint
       const url = `/api/transcripts?filePath=${encodeURIComponent(filePath)}`;
       const response = await fetch(url);
-      
+
       if (!response.ok) {
         if (response.status === 404) {
           transcriptError = `Transcript at "${filePath}" not found`;
         } else {
-          // Try to extract server error details for easier debugging
           let details = '';
           try {
             const errJson = await response.clone().json();
@@ -91,16 +144,16 @@ export function createTranscriptLoader(filePath: string) {
         }
         return null;
       }
-      
+
       const result = await response.json();
       if (result.success) {
         transcript = result.data;
-        
+
         // If metadata wasn't loaded yet, extract it from the full transcript (when present)
         if (!metadata && transcript && 'transcript' in transcript && transcript.transcript?.metadata) {
           metadata = transcript.transcript.metadata;
         }
-        
+
         return transcript;
       } else {
         throw new Error(result.error || 'Unknown API error');
