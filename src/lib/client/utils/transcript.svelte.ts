@@ -1,4 +1,5 @@
 import type { TranscriptMetadata, TranscriptDisplay } from '$lib/shared/types';
+import { base } from '$app/paths';
 
 // Check if we're in static mode
 const isStaticMode = import.meta.env.VITE_STATIC_MODE === 'true';
@@ -9,7 +10,7 @@ let staticDataCache: { transcripts: Record<string, any>; metadata: any[] } | nul
 async function getStaticBundledData() {
   if (staticDataCache) return staticDataCache;
 
-  const response = await fetch('/data/bundled-transcripts.json');
+  const response = await fetch(`${base}/data/bundled-transcripts.json`);
   if (!response.ok) {
     throw new Error(`Failed to load bundled data: ${response.status}`);
   }
