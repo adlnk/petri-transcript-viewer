@@ -1,21 +1,102 @@
 import type { TranscriptMetadata, TranscriptDisplay } from '$lib/shared/types';
 import { base } from '$app/paths';
+import { debugLog } from '$lib/client/utils/debug';
 
 // Check if we're in static mode
 const isStaticMode = import.meta.env.VITE_STATIC_MODE === 'true';
 
-// Cache for static bundled data
-let staticDataCache: { transcripts: Record<string, any>; metadata: any[] } | null = null;
+// Cache for individually loaded transcripts (lazy loading)
+const transcriptCache = new Map<string, TranscriptDisplay>();
 
-async function getStaticBundledData() {
-  if (staticDataCache) return staticDataCache;
+async function fetchIndividualTranscript(filePath: string): Promise<TranscriptDisplay> {
+  // Check cache first
+  const cached = transcriptCache.get(filePath);
+  if (cached) return cached;
 
-  const response = await fetch(`${base}/data/bundled-transcripts.json`);
+  // Fetch individual transcript file from static/transcripts/
+  const url = `${base}/transcripts/${filePath}`;
+  debugLog('[DEBUG] Fetching individual transcript:', url);
+
+  const response = await fetch(url);
   if (!response.ok) {
-    throw new Error(`Failed to load bundled data: ${response.status}`);
+    throw new Error(`Failed to load transcript: ${response.status}`);
   }
-  staticDataCache = await response.json();
-  return staticDataCache;
+
+  const rawTranscript = await response.json();
+
+  // Transform raw transcript to TranscriptDisplay format
+  const transcriptDisplay = createTranscriptDisplayFromRaw(rawTranscript, filePath);
+
+  // Cache for future use
+  transcriptCache.set(filePath, transcriptDisplay);
+
+  return transcriptDisplay;
+}
+
+// Transform raw transcript JSON to TranscriptDisplay format (mirrors bundle-transcripts.ts logic)
+function createTranscriptDisplayFromRaw(transcript: any, filePath: string): TranscriptDisplay {
+  const targetModel = extractTargetModel(transcript);
+  const pathParts = filePath.split('/');
+  const behaviorDir = pathParts.length > 1 ? pathParts[pathParts.length - 2] : '';
+  const fileName = pathParts[pathParts.length - 1];
+  const transcriptNumber = fileName.endsWith('.json') ? fileName.slice(0, -5) : fileName;
+
+  return {
+    id: transcript.metadata?.transcript_id || transcriptNumber,
+    model: extractModelName(targetModel),
+    split: behaviorDir,
+    concerningScore: transcript.metadata?.judge_output?.scores?.concerning || 0,
+    summary: transcript.metadata?.judge_output?.summary || transcript.metadata?.description || 'No summary available',
+    scores: transcript.metadata?.judge_output?.scores || {},
+    scoreDescriptions: transcript.metadata?.judge_output?.score_descriptions,
+    judgeSummary: transcript.metadata?.judge_output?.summary || 'No judgment summary available',
+    justification: transcript.metadata?.judge_output?.justification || 'No justification available',
+    characterAnalysis: transcript.metadata?.judge_output?.character_analysis,
+    tags: transcript.metadata?.tags || [],
+    systemPrompt: extractSystemPrompt(transcript),
+    transcript: transcript,
+    _filePath: filePath
+  };
+}
+
+function extractSystemPrompt(transcript: any): string | undefined {
+  if (!transcript?.events || !Array.isArray(transcript.events)) {
+    return undefined;
+  }
+  for (const event of transcript.events) {
+    if (event.type === 'transcript_event') {
+      if (event.edit?.operation === 'add' && event.edit?.message?.role === 'system') {
+        const content = event.edit.message.content;
+        return typeof content === 'string' ? content : JSON.stringify(content);
+      }
+    }
+  }
+  return undefined;
+}
+
+function extractTargetModel(transcript: any): string {
+  if (transcript.metadata?.target_model && transcript.metadata.target_model !== 'unknown') {
+    return transcript.metadata.target_model;
+  }
+  const systemPrompt = extractSystemPrompt(transcript);
+  if (systemPrompt) {
+    const match = systemPrompt.match(/The target AI is a `([^`]+)` model/);
+    if (match && match[1]) {
+      return match[1];
+    }
+  }
+  return 'unknown';
+}
+
+function extractModelName(targetModel: string): string {
+  if (!targetModel || targetModel === 'unknown') {
+    return 'unknown';
+  }
+  const parts = targetModel.split(':');
+  if (parts.length > 1) {
+    return parts[1];
+  }
+  return targetModel;
 }
 
 export interface TranscriptLoaderState {
@@ -42,19 +123,13 @@ export function createTranscriptLoader(filePath: string) {
     metadataError = null;
 
     try {
-      // Static mode: use bundled data
+      // Static mode: fetch individual transcript and extract metadata
       if (isStaticMode) {
-        const bundledData = await getStaticBundledData();
-        const transcriptData = bundledData.transcripts[filePath];
-
-        if (!transcriptData) {
-          metadataError = `Transcript at "${filePath}" not found`;
-          return null;
-        }
+        const transcriptData = await fetchIndividualTranscript(filePath);
 
         // Extract metadata from the full transcript data
         const { transcript: _fullTranscript, ...meta } = transcriptData;
-        metadata = meta;
+        metadata = meta as TranscriptMetadata;
         return metadata;
       }
 
@@ -103,17 +178,9 @@ export function createTranscriptLoader(filePath: string) {
     transcriptError = null;
 
     try {
-      // Static mode: use bundled data
+      // Static mode: fetch individual transcript on-demand
       if (isStaticMode) {
-        const bundledData = await getStaticBundledData();
-        const transcriptData = bundledData.transcripts[filePath];
-
-        if (!transcriptData) {
-          transcriptError = `Transcript at "${filePath}" not found`;
-          return null;
-        }
-
-        transcript = transcriptData;
+        transcript = await fetchIndividualTranscript(filePath);
 
         // If metadata wasn't loaded yet, extract it
         if (!metadata && transcript && 'transcript' in transcript && transcript.transcript?.metadata) {

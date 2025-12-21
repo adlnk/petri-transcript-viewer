@@ -6,18 +6,18 @@ import { base } from '$app/paths';
 // Check if we're in static mode
 const isStaticMode = import.meta.env.VITE_STATIC_MODE === 'true';
 
-// Cache for static bundled data
-let staticDataCache: { transcripts: Record<string, any>; metadata: any[] } | null = null;
+// Cache for static metadata index (lightweight, no full transcripts)
+let metadataIndexCache: { metadata: any[]; transcriptCount: number } | null = null;
 
-async function loadStaticBundledData() {
-  if (staticDataCache) return staticDataCache;
+async function loadMetadataIndex() {
+  if (metadataIndexCache) return metadataIndexCache;
 
-  const response = await fetch(`${base}/data/bundled-transcripts.json`);
+  const response = await fetch(`${base}/data/metadata-index.json`);
   if (!response.ok) {
-    throw new Error(`Failed to load bundled data: ${response.status}`);
+    throw new Error(`Failed to load metadata index: ${response.status}`);
   }
-  staticDataCache = await response.json();
-  return staticDataCache;
+  metadataIndexCache = await response.json();
+  return metadataIndexCache;
 }
 
 export interface LoadDataResult {
@@ -83,11 +83,11 @@ export function createTranscriptDataLoader() {
   }
 
   async function loadDataBulk(rootDirParam: string, includeErrors: boolean) {
-    // Static mode: use bundled data
+    // Static mode: use metadata index (lazy loading)
     if (isStaticMode) {
-      debugLog('[DEBUG] Loading from bundled static data');
-      const bundledData = await loadStaticBundledData();
-      let transcriptList = bundledData.metadata || [];
+      debugLog('[DEBUG] Loading from metadata index');
+      const indexData = await loadMetadataIndex();
+      let transcriptList = indexData.metadata || [];
 
       // Filter by subdirectory if specified
       if (rootDirParam) {
