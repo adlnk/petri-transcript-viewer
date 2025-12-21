@@ -1,4 +1,5 @@
 // Helpers for path normalization and URL building used across components
+import { base } from '$app/paths';
 
 /** Convert any Windows-style path separators to POSIX forward slashes */
 export function toPosixPath(p: string): string {
@@ -9,7 +10,7 @@ export function toPosixPath(p: string): string {
 export function buildTranscriptUrl(relativePath: string): string {
   const safe = toPosixPath(relativePath || '');
   const segments = safe.split('/').filter(Boolean).map(encodeURIComponent);
-  return `/transcript/${segments.join('/')}`;
+  return `${base}/transcript/${segments.join('/')}`;
 }
 
 /** Ensure a client-provided path is safe for splitting/URL usage */
@@ -70,11 +71,11 @@ export function generateTranscriptUrl(filePath: string): string {
   if (!filePath) {
     throw new Error('Invalid file path: empty string');
   }
-  
+
   // Split path into segments and encode each one
   const segments = filePath.split('/').map(segment => encodeURIComponent(segment));
-  
-  return `/transcript/${segments.join('/')}`;
+
+  return `${base}/transcript/${segments.join('/')}`;
 }
 
 /**
