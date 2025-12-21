@@ -1,7 +1,7 @@
 {
-	"name": "@kaifronsdal/transcript-viewer",
+	"name": "petri-transcript-viewer",
 	"private": false,
-	"version": "1.0.29",
+	"version": "1.0.0",
 	"type": "module",
 	"description": "A web-based viewer for AI conversation transcripts with rollback support",
 	"keywords": [
@@ -9,14 +9,14 @@
 		"transcript",
 		"viewer",
 		"svelte",
-		"conversation"
+		"conversation",
+		"petri"
 	],
-	"author": "Kai Fronsdal",
+	"author": "Adelin Kassler",
 	"license": "MIT",
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/kaifronsdal/AutoAlignmentAuditor.git",
-		"directory": "website/transcript-viewer"
+		"url": "https://github.com/adlnk/petri-transcript-viewer.git"
 	},
 	"bin": {
 		"transcript-viewer": "./bin/transcript-viewer.js"
@@ -25,6 +25,7 @@
 		"build",
 		"bin",
 		"src",
+		"scripts",
 		"static",
 		"package.json",
 		"README.md",
@@ -37,6 +38,8 @@
 		"dev": "vite dev",
 		"dev:runpod": "vite dev --host 0.0.0.0 --port 3000",
 		"build": "vite build",
+		"build:static": "npm run bundle-transcripts && BUILD_MODE=static VITE_STATIC_MODE=true vite build",
+		"bundle-transcripts": "tsx scripts/bundle-transcripts.ts",
 		"preview": "vite preview",
 		"prepare": "svelte-kit sync || echo ''",
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
@@ -49,6 +52,7 @@
 	"devDependencies": {
 		"@eslint/compat": "^1.2.5",
 		"@eslint/js": "^9.18.0",
+		"@sveltejs/adapter-static": "^3.0.10",
 		"@types/markdown-it": "^14.1.2",
 		"@types/node": "^24.0.13",
 		"@types/stream-json": "^1.7.8",
@@ -60,6 +64,7 @@
 		"prettier-plugin-svelte": "^3.3.3",
 		"prettier-plugin-tailwindcss": "^0.6.11",
 		"svelte-check": "^4.0.0",
+		"tsx": "^4.21.0",
 		"typescript-eslint": "^8.20.0"
 	},
 	"dependencies": {
@@ -78,9 +83,9 @@
 		"express": "^4.21.2",
 		"fast-json-patch": "^3.1.1",
 		"filtrex": "^3.1.0",
+		"highlight.js": "^11.9.0",
 		"idb": "^7.1.1",
 		"markdown-it": "^14.1.0",
-		"highlight.js": "^11.9.0",
 		"open": "^10.1.0",
 		"svelte": "^5.0.0",
 		"tailwindcss": "^4.0.0",

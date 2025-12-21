@@ -1,17 +1,27 @@
-import adapter from '@sveltejs/adapter-node';
+import adapterNode from '@sveltejs/adapter-node';
+import adapterStatic from '@sveltejs/adapter-static';
 import { vitePreprocess } from '@sveltejs/vite-plugin-svelte';
+
+const isStatic = process.env.BUILD_MODE === 'static';
 
 /** @type {import('@sveltejs/kit').Config} */
 const config = {
-	// Consult https://svelte.dev/docs/kit/integrations
-	// for more information about preprocessors
 	preprocess: vitePreprocess(),
 
 	kit: {
-		// Use Node adapter for better server functionality
-		adapter: adapter({
-			out: 'build'
-		})
+		adapter: isStatic
+			? adapterStatic({
+					pages: 'build',
+					assets: 'build',
+					fallback: '404.html',
+					strict: true
+				})
+			: adapterNode({
+					out: 'build'
+				}),
+		paths: {
+			base: process.env.BASE_PATH || ''
+		}
 	}
 };
 

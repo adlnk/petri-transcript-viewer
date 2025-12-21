@@ -1,87 +1,132 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import path from 'path';
-import { validateFilePath, normalizeFilePath } from '$lib/server/utils/server-file-utils';
-import { getTranscriptCache } from '$lib/server/cache/transcript-cache';
-import { TRANSCRIPT_DIR } from '$lib/server/config';
+import { BUNDLED_TRANSCRIPTS, BUNDLE_TRANSCRIPT_COUNT } from '$lib/server/data/bundled-transcripts';
+
+// Check if we're in static mode (bundled data available)
+const isStaticMode = BUNDLE_TRANSCRIPT_COUNT > 0;
+
+// Dynamic imports for node mode (only loaded when needed)
+let validateFilePath: typeof import('$lib/server/utils/server-file-utils').validateFilePath;
+let getTranscriptCache: typeof import('$lib/server/cache/transcript-cache').getTranscriptCache;
+let TRANSCRIPT_DIR: string;
+
+async function ensureNodeImports() {
+  if (!validateFilePath) {
+    const serverFileUtils = await import('$lib/server/utils/server-file-utils');
+    validateFilePath = serverFileUtils.validateFilePath;
+    const transcriptCache = await import('$lib/server/cache/transcript-cache');
+    getTranscriptCache = transcriptCache.getTranscriptCache;
+    const config = await import('$lib/server/config');
+    TRANSCRIPT_DIR = config.TRANSCRIPT_DIR;
+  }
+}
 
 export const GET: RequestHandler = async ({ url }) => {
   try {
-    // Parse query parameters
     const filePath = url.searchParams.get('filePath');
     const metadataOnly = url.searchParams.get('metadataOnly') === 'true';
-    
-    // Validate required parameters
+
     if (!filePath) {
       throw error(400, {
         message: 'Missing required parameter: filePath'
       });
     }
-    
-    // All file paths should now be relative to the transcript directory
-    // Resolve the relative path against the transcript directory
-    const resolvedPath = path.resolve(TRANSCRIPT_DIR, filePath);
-    
+
+    // Static mode: use bundled data
+    if (isStaticMode) {
+      const transcript = BUNDLED_TRANSCRIPTS[filePath];
+
+      if (!transcript) {
+        throw error(404, {
+          message: `Transcript not found: ${filePath}`
+        });
+      }
+
+      if (metadataOnly) {
+        // Return without the full transcript data
+        const { transcript: _fullTranscript, ...metadata } = transcript;
+        return json({
+          success: true,
+          data: metadata
+        }, {
+          headers: {
+            'Cache-Control': 'public, max-age=300',
+          }
+        });
+      }
+
+      return json({
+        success: true,
+        data: transcript
+      }, {
+        headers: {
+          'Cache-Control': 'public, max-age=60',
+        }
+      });
+    }
+
+    // Node mode: use filesystem loading
+    await ensureNodeImports();
+
+    const { default: path } = await import('path');
+
     // Validate the relative file path
     if (!validateFilePath(filePath)) {
       throw error(400, {
         message: `Invalid or unsafe file path: ${filePath}`
       });
     }
-    
-    // Get cache instance
+
+    const resolvedPath = path.resolve(TRANSCRIPT_DIR, filePath);
     const cache = getTranscriptCache();
-    
-    // Load the requested data through cache
+
     if (metadataOnly) {
       const metadata = await cache.getMetadata(resolvedPath);
-      
+
       if (metadata === null) {
         throw error(404, {
           message: `Transcript not found: ${filePath}`
         });
       }
-      
+
       return json({
         success: true,
         data: metadata
       }, {
         headers: {
-          'Cache-Control': 'public, max-age=300', // 5 minutes browser cache for metadata
+          'Cache-Control': 'public, max-age=300',
         }
       });
-      
+
     } else {
       const transcript = await cache.getFullTranscript(resolvedPath);
-      
+
       if (transcript === null) {
         throw error(404, {
           message: `Transcript not found: ${filePath}`
         });
       }
-      
+
       return json({
         success: true,
         data: transcript
       }, {
         headers: {
-          'Cache-Control': 'public, max-age=60', // 1 minute browser cache for full transcripts
+          'Cache-Control': 'public, max-age=60',
         }
       });
     }
-    
+
   } catch (err: any) {
-    // If it's already a SvelteKit error, re-throw it
     if (err.status) {
       throw err;
     }
-    
-    // Validation failure mapping with details
+
     if (err?.code === 'TRANSCRIPT_VALIDATION_FAILED' && err.validation) {
       const { errors: validationErrors } = err.validation;
       const details = validationErrors?.map?.((e: any, i: number) => {
-        const path = e.path || 'root';
-        return `${i + 1}. ${path}: ${e.message}`;
+        const pathStr = e.path || 'root';
+        return `${i + 1}. ${pathStr}: ${e.message}`;
       })?.join('\n');
       console.error('Transcript validation error:', details);
       throw error(422, {
@@ -89,11 +134,9 @@ export const GET: RequestHandler = async ({ url }) => {
         details,
       } as any);
     }
-    
-    // Log unexpected errors
+
     console.error('Transcript API error:', err);
-    
-    // Return generic 500 error for unexpected issues
+
     throw error(500, {
       message: 'Internal server error while loading transcript'
     });
