@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { page } from '$app/stores';
+	import { base } from '$app/paths';
 	import TranscriptTable from '$lib/client/components/TranscriptTable.svelte';
 	import FilterControls from '$lib/client/components/common/FilterControls.svelte';
 	import ViewModeToggle from '$lib/client/components/common/ViewModeToggle.svelte';
@@ -136,7 +137,7 @@
 		const filePath = transcript._filePath || '';
 		const withPrefix = currentPath ? `${currentPath}/${filePath}` : filePath;
 		const encodedPath = withPrefix.split('/').map((segment: string) => encodeURIComponent(segment)).join('/');
-		window.location.href = `/transcript/${encodedPath}`;
+		window.location.href = `${base}/transcript/${encodedPath}`;
 	}
 
 	// Folder expansion is now handled entirely by TranscriptTable
@@ -151,7 +152,7 @@
 	{#if breadcrumbSegments.length > 0}
 		<div class="breadcrumbs text-sm">
 			<ul>
-				<li><a href="/" class="font-mono text-xs">Home</a></li>
+				<li><a href="{base}/" class="font-mono text-xs">Home</a></li>
 				{#each breadcrumbSegments as segment, index}
 					<li>
 						{#if index === breadcrumbSegments.length - 1}
@@ -161,8 +162,8 @@
 							</span>
 						{:else}
 							<!-- Parent directory - clickable -->
-							<a 
-								href="/?path={encodeURIComponent(segment.path)}" 
+							<a
+								href="{base}/?path={encodeURIComponent(segment.path)}"
 								class="font-mono text-xs transition-colors"
 								title="Navigate to {segment.path}"
 							>

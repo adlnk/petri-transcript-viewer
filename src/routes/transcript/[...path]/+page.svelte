@@ -1,5 +1,6 @@
 <script lang="ts">
   import { page } from '$app/stores';
+  import { base } from '$app/paths';
   import { parseUrlPath, generateTranscriptUrl } from '$lib/client/utils/file-utils';
   import TranscriptViewer from '$lib/client/components/transcript/TranscriptViewer.svelte';
   
@@ -68,7 +69,7 @@
     <div class="flex-1">
       <div class="breadcrumbs text-sm">
         <ul>
-          <li><a href="/" class="font-mono text-xs">Home</a></li>
+          <li><a href="{base}/" class="font-mono text-xs">Home</a></li>
           {#each breadcrumbSegments as segment, index}
             <li>
               {#if segment.isFile}
@@ -78,8 +79,8 @@
                 </span>
               {:else}
                 <!-- Directory - clickable to subdirectory view -->
-                <a 
-                  href="/?path={encodeURIComponent(segment.path)}" 
+                <a
+                  href="{base}/?path={encodeURIComponent(segment.path)}"
                   class="font-mono text-xs transition-colors"
                   title="View directory: {segment.path}"
                 >
@@ -102,7 +103,7 @@
           </svg>
           <span>{errorMessage}</span>
           <div>
-            <a href="/" class="btn btn-sm">Go Home</a>
+            <a href="{base}/" class="btn btn-sm">Go Home</a>
           </div>
         </div>
       </div>
