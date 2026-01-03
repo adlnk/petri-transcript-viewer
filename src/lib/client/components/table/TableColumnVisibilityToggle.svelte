@@ -23,7 +23,7 @@
     </svg>
     Columns
   </div>
-  <div class="dropdown-content z-[1] menu p-2 shadow bg-base-100 rounded-box w-52">
+  <div class="dropdown-content z-[9999] menu p-2 shadow bg-base-100 rounded-box w-52">
     <div class="form-control">
       <label class="label cursor-pointer">
         <span class="label-text font-medium">Toggle All</span>

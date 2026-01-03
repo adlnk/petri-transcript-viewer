@@ -10,7 +10,7 @@ export const filterState = new LocalStore<FilterState>('homepage-filters', {
 
 // Homepage view settings
 export const viewSettings = new LocalStore<ViewSettings>('homepage-view', {
-  viewMode: 'tree',
+  viewMode: 'list',
   rowDensity: 'normal'
 });
 

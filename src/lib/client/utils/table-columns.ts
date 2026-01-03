@@ -166,6 +166,19 @@ export function createColumns(scoreTypes: string[], data: TableRow[] = [], score
       minSize: 120,
     },
     {
+      id: 'split',
+      accessorKey: 'split',
+      header: 'Split',
+      cell: ({ row, getValue }) => {
+        if (row.original.type === 'folder') return '';
+        return getValue() || '';
+      },
+      enableSorting: true,
+      enableResizing: true,
+      size: 150,
+      minSize: 80,
+    },
+    {
       id: 'summary',
       accessorKey: 'summary',
       header: 'Summary',
@@ -226,13 +239,11 @@ export function createColumns(scoreTypes: string[], data: TableRow[] = [], score
 
 export function getDefaultColumnVisibility(scoreTypes: string[]) {
   const visibility: Record<string, boolean> = {
-    id: true,
+    id: false,
     model: true,
     tags: true,
     split: false,
-    concerningScore: false,
     summary: true,
-    judgeSummary: false,
   };
 
   // Show only priority score columns by default, hide all individual dimension scores
@@ -249,9 +260,7 @@ export function getAllColumnInfo(scoreTypes: string[]) {
     { id: 'model', header: 'Model' },
     { id: 'tags', header: 'Tags' },
     { id: 'split', header: 'Split' },
-    { id: 'concerningScore', header: 'Concerning Score' },
     { id: 'summary', header: 'Summary' },
-    { id: 'judgeSummary', header: 'Judge Summary' },
     ...scoreTypes.map(scoreType => ({
       id: `score_${scoreType}`,
       header: scoreType.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
