@@ -68,7 +68,7 @@
 	
 	// Extract all unique score types for table columns
 	// Priority scores appear first (after summary), then alphabetical
-	const PRIORITY_SCORES = ['needs_attention', 'overall_soul_doc_deviation'];
+	const PRIORITY_SCORES = ['needs_attention', 'problem_severity', 'overall_soul_doc_deviation'];
 
 	let scoreTypes = $derived.by(() => {
 		const allScores = [...new Set(allTranscripts.flatMap(t => Object.keys(t.scores || {})))];

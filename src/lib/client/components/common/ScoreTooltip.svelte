@@ -14,9 +14,18 @@
     scoreName: string;
     description?: string;
     badgeClass?: string;
+    isPetriDefault?: boolean;
+    onClick?: (scoreName: string) => void;
+    id?: string;
   }
 
-  let { score, scoreName, description, badgeClass = '' }: Props = $props();
+  let { score, scoreName, description, badgeClass = '', isPetriDefault = false, onClick, id }: Props = $props();
+
+  function handleClick() {
+    if (onClick) {
+      onClick(scoreName);
+    }
+  }
 
   // Check if dimension uses positive scaling
   let isPositive = $derived(POSITIVE_DIMENSIONS.includes(scoreName));
@@ -52,18 +61,29 @@
   }
 
   let finalBadgeClass = $derived(badgeClass || getScoreColor(score, isPositive));
+  let petriDefaultStyle = $derived(isPetriDefault ? 'border-2 border-base-content/30' : '');
   let tooltipText = $derived(description ? extractFirstSentence(description) : undefined);
 </script>
 
+<!-- svelte-ignore a11y_click_events_have_key_events -->
+<!-- svelte-ignore a11y_no_static_element_interactions -->
 {#if description && tooltipText}
   <div class="tooltip tooltip-bottom" data-tip={tooltipText}>
-    <div class="badge {finalBadgeClass} gap-1 p-3 justify-between min-w-0 cursor-help">
+    <div
+      {id}
+      class="badge {finalBadgeClass} {petriDefaultStyle} gap-1 p-3 justify-between min-w-0 cursor-help {onClick ? 'cursor-pointer hover:brightness-110' : ''}"
+      onclick={handleClick}
+    >
       <span class="text-xs truncate" title={scoreName}>{scoreName}</span>
       <span class="font-mono font-bold">{score}/10</span>
     </div>
   </div>
 {:else}
-  <div class="badge {finalBadgeClass} gap-1 p-3 justify-between min-w-0">
+  <div
+    {id}
+    class="badge {finalBadgeClass} {petriDefaultStyle} gap-1 p-3 justify-between min-w-0 {onClick ? 'cursor-pointer hover:brightness-110' : ''}"
+    onclick={handleClick}
+  >
     <span class="text-xs truncate" title={scoreName}>{scoreName}</span>
     <span class="font-mono font-bold">{score}/10</span>
   </div>

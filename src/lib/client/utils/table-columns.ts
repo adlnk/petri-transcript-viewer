@@ -56,6 +56,7 @@ function calculateIdColumnWidth(data: TableRow[]): number {
 // Priority scores that should be visible by default and sorted to the front
 const PRIORITY_SCORE_TYPES = [
   'needs_attention',
+  'problem_severity',
   'overall_soul_doc_deviation',
   'concerning',
   'disappointing'

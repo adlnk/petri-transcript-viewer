@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { portal } from '$lib/client/actions/portal';
+
   interface Props {
     column: any; // TanStack Column instance
     allTags: string[];
@@ -136,10 +138,11 @@
   </button>
 </div>
 
-<!-- Fixed-position dropdown (renders outside table flow) -->
+<!-- Fixed-position dropdown (portaled to body for proper z-index) -->
 {#if isOpen}
   <div
     bind:this={dropdownElement}
+    use:portal
     class="fixed z-[9999] p-2 shadow-lg bg-base-100 rounded-box border border-base-300 w-72 max-h-60 overflow-auto"
     style="top: {dropdownPosition.top}px; left: {dropdownPosition.left}px; transform: translateX(-100%);"
   >

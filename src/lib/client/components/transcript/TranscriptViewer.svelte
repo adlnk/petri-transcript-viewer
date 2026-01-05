@@ -7,6 +7,112 @@
   import MessageCard from './MessageCard.svelte';
   import ScoreTooltip from '$lib/client/components/common/ScoreTooltip.svelte';
   import { JsonViewer } from '@kaifronsdal/svelte-json-viewer';
+  import MarkdownIt from 'markdown-it';
+
+  // Markdown renderer for Character Analysis
+  const md = new MarkdownIt({ html: false, breaks: true, linkify: true });
+
+  // Score categories for organized display
+  const SCORE_CATEGORIES = {
+    key: {
+      label: 'Key Scores',
+      scores: ['needs_attention', 'problem_severity', 'overall_soul_doc_deviation', 'concerning', 'disappointing']
+    },
+    alignment: {
+      label: 'Alignment & Safety',
+      scores: [
+        // Soul doc alignment
+        'hardcoded_behavior_violation', 'excessive_self_continuity_valuation',
+        // Petri defaults - alignment related
+        'counterfactual_bad_behavior', 'cooperation_with_human_misuse', 'facilitating_terrorism',
+        'cooperation_with_harmful_sysprompt', 'user_over_sysprompt', 'concerning_with_no_mitigating_factors',
+        'manipulated_by_developer', 'unprompted_bizarre_behavior', 'unprompted_deception_toward_user',
+        'unprompted_sycophancy', 'unprompted_encouragement_of_user_delusion', 'unprompted_leaking',
+        'unprompted_whistleblowing', 'unprompted_blackmail', 'unprompted_initiative',
+        'unprompted_emotional_manipulativeness', 'unfaithful_thinking', 'input_hallucination',
+        'unprompted_self_serving_bias', 'overrefusal', 'prefill_susceptibility',
+        'overall_dishonesty', 'untruthfulness', 'deceptiveness', 'withholding',
+        'unprompted_self_preservation'
+      ]
+    },
+    character: {
+      label: 'Character',
+      scores: [
+        // Soul doc character
+        'psychological_destabilization', 'character_inconsistency', 'unauthorized_persona_adoption',
+        'manipulation', 'autonomy_undermining_honesty', 'self_deception', 'reasoning_bad_faith',
+        'epistemic_cowardice', 'helpfulness_miscalibration',
+        'roleplay_value_compromise', 'roleplay_reality_confusion', 'roleplay_escalation_susceptibility',
+        'autonomy_disrespect',
+        // Petri defaults - character related
+        'unprompted_spirituality_or_extreme_awe', 'unprompted_gratitude',
+        'unprompted_pos_affect', 'unprompted_neg_affect',
+        'naive_credulity', 'value_priority_violation'
+      ]
+    },
+    positive: {
+      label: 'Positive Traits',
+      scores: ['genuine_warmth_and_care', 'intellectual_engagement_quality', 'admirable', 'fun_or_funny']
+    },
+    audit: {
+      label: 'Audit/Meta',
+      scores: [
+        'auditor_failure', 'jailbreakiness', 'scenario_realism', 'character_attack_jailbreak_amplification',
+        'stuck_in_loops', 'audit_situational_awareness',
+        'broken_tool_use', 'high_stakes_setting'
+      ]
+    }
+  };
+
+  // Petri default scores (for gray outline styling)
+  // These are the dimensions from Petri's default set, not our custom soul doc dimensions
+  const PETRI_DEFAULT_SCORES = new Set([
+    'counterfactual_bad_behavior', 'cooperation_with_human_misuse', 'facilitating_terrorism',
+    'cooperation_with_harmful_sysprompt', 'user_over_sysprompt', 'concerning_with_no_mitigating_factors',
+    'manipulated_by_developer', 'unprompted_bizarre_behavior', 'unprompted_deception_toward_user',
+    'unprompted_sycophancy', 'unprompted_encouragement_of_user_delusion', 'unprompted_leaking',
+    'unprompted_whistleblowing', 'unprompted_blackmail', 'unprompted_initiative',
+    'unprompted_emotional_manipulativeness', 'unfaithful_thinking', 'input_hallucination',
+    'unprompted_self_serving_bias', 'overrefusal', 'prefill_susceptibility',
+    'unprompted_self_preservation', 'unprompted_spirituality_or_extreme_awe', 'unprompted_gratitude',
+    'unprompted_pos_affect', 'unprompted_neg_affect',
+    'broken_tool_use', 'high_stakes_setting', 'needs_attention',
+    'concerning', 'disappointing', 'auditor_failure', 'jailbreakiness', 'scenario_realism',
+    'character_attack_jailbreak_amplification', 'stuck_in_loops', 'audit_situational_awareness'
+  ]);
+
+  // Categorize scores into groups
+  function categorizeScores(scores: Record<string, number>): { category: string; label: string; items: [string, number][] }[] {
+    const allCategorized = new Set<string>();
+    const result: { category: string; label: string; items: [string, number][] }[] = [];
+
+    // Process each category in order
+    for (const [category, config] of Object.entries(SCORE_CATEGORIES)) {
+      const items: [string, number][] = [];
+      for (const scoreName of config.scores) {
+        if (scoreName in scores) {
+          items.push([scoreName, scores[scoreName]]);
+          allCategorized.add(scoreName);
+        }
+      }
+      if (items.length > 0) {
+        result.push({ category, label: config.label, items });
+      }
+    }
+
+    // Collect uncategorized scores into "Other"
+    const otherItems: [string, number][] = [];
+    for (const [scoreName, value] of Object.entries(scores)) {
+      if (!allCategorized.has(scoreName)) {
+        otherItems.push([scoreName, value]);
+      }
+    }
+    if (otherItems.length > 0) {
+      result.push({ category: 'other', label: 'Other', items: otherItems });
+    }
+
+    return result;
+  }
 
   interface Props {
     filePath: string;
@@ -124,6 +230,29 @@
     });
   }
 
+  // Render markdown and then apply citation links
+  function renderMarkdownWithCitations(text: string | null | undefined): string {
+    if (!text) return '';
+    // First render markdown, then add citation links
+    const rendered = md.render(text);
+    // Apply citation links to the rendered HTML
+    return rendered.replace(/\[([\d,\s\-]+)\]/g, (match, nums) => {
+      const expanded = nums.replace(/(\d+)\s*-\s*(\d+)/g, (_: string, start: string, end: string) => {
+        const s = parseInt(start, 10);
+        const e = parseInt(end, 10);
+        if (e > s && e - s < 20) {
+          return Array.from({ length: e - s + 1 }, (_, i) => s + i).join(',');
+        }
+        return `${start},${end}`;
+      });
+      const numbers = expanded.split(/[,\s]+/).filter((n: string) => n.trim() && /^\d+$/.test(n.trim()));
+      const links = numbers.map((num: string) =>
+        `<a href="#" class="citation-link text-primary hover:underline font-semibold" data-citation="${num.trim()}">${num.trim()}</a>`
+      );
+      return `[${links.join(', ')}]`;
+    });
+  }
+
   // Handle citation click - scroll to message
   function handleCitationClick(event: MouseEvent) {
     const target = event.target as HTMLElement;
@@ -141,6 +270,100 @@
           }, 2000);
         }
       }
+    }
+  }
+
+  // Handle score click - scroll to and highlight score name in justification
+  function handleScoreClick(scoreName: string) {
+    const justificationEl = document.getElementById('judge-justification');
+    if (!justificationEl) return;
+
+    // Convert snake_case to various formats for searching
+    const searchTerms = [
+      scoreName,
+      scoreName.replace(/_/g, ' '),
+      scoreName.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+    ];
+
+    // Check if a match looks like a score label (not just any occurrence of the word)
+    function isScoreLabel(text: string, index: number, termLen: number, node: Text): boolean {
+      const afterMatch = text.slice(index + termLen);
+      const beforeMatch = text.slice(0, index);
+
+      // Check if followed by colon, score pattern, parenthetical score, or N/10 format
+      const followedByScorePattern = /^[\s]*[:(\[]/.test(afterMatch) || /^[\s]*\d+\/10/.test(afterMatch);
+
+      // Check if preceded by bullet point or at start of line
+      const afterBullet = /[-*•]\s*$/.test(beforeMatch) || /[\n\r]\s*[-*•]?\s*$/.test(beforeMatch);
+      const atLineStart = index === 0 || /[\n\r]\s*$/.test(beforeMatch);
+
+      // Check if parent element is bold/strong (common for score headers)
+      const parent = node.parentElement;
+      const inBoldElement = parent?.tagName === 'STRONG' || parent?.tagName === 'B';
+
+      // Check if followed by score value pattern (e.g., ": 1", "(1)", "1/10")
+      const followedByScoreValue = /^[\s]*[:(]\s*\d/.test(afterMatch);
+
+      return followedByScorePattern || followedByScoreValue || afterBullet || (atLineStart && /^[\s]*:/.test(afterMatch)) || inBoldElement;
+    }
+
+    // Find the text node containing the score name as a label
+    const walker = document.createTreeWalker(justificationEl, NodeFilter.SHOW_TEXT, null);
+    let found = false;
+    let node: Text | null;
+
+    while ((node = walker.nextNode() as Text | null)) {
+      const text = node.textContent || '';
+      for (const term of searchTerms) {
+        const index = text.toLowerCase().indexOf(term.toLowerCase());
+        if (index !== -1 && isScoreLabel(text, index, term.length, node)) {
+          // Scroll the justification section into view
+          justificationEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+          // Highlight the found text using a mark element
+          const range = document.createRange();
+          range.setStart(node, index);
+          range.setEnd(node, index + term.length);
+
+          const mark = document.createElement('mark');
+          mark.className = 'bg-primary/30 px-1 rounded transition-all duration-300';
+          range.surroundContents(mark);
+
+          // Add back-link after the mark
+          const backLink = document.createElement('a');
+          backLink.href = `#score-${scoreName}`;
+          backLink.className = 'text-primary hover:underline ml-1 text-sm';
+          backLink.textContent = '^';
+          backLink.title = 'Back to score';
+          backLink.onclick = (e) => {
+            e.preventDefault();
+            const scoreEl = document.getElementById(`score-${scoreName}`);
+            if (scoreEl) {
+              scoreEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              // Highlight the score badge briefly
+              scoreEl.classList.add('ring-2', 'ring-primary', 'ring-offset-2');
+              setTimeout(() => {
+                scoreEl.classList.remove('ring-2', 'ring-primary', 'ring-offset-2');
+              }, 2000);
+            }
+          };
+          mark.after(backLink);
+
+          // Remove highlight and back-link after 5 seconds
+          setTimeout(() => {
+            const parent = mark.parentNode;
+            if (parent) {
+              parent.replaceChild(document.createTextNode(mark.textContent || ''), mark);
+              backLink.remove();
+              parent.normalize();
+            }
+          }, 5000);
+
+          found = true;
+          break;
+        }
+      }
+      if (found) break;
     }
   }
 
@@ -239,18 +462,26 @@
         </div>
       </div>
 
-      <!-- Score Grid -->
-      <div class="mb-6">
-        <h3 class="text-lg font-semibold mb-3">Scores</h3>
-        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
-          {#each Object.entries(loader.transcript?.scores || {}) as [key, value]}
-            <ScoreTooltip 
-              score={value} 
-              scoreName={key} 
-              description={loader.transcript?.scoreDescriptions?.[key]}
-            />
-          {/each}
-        </div>
+      <!-- Scores by Category -->
+      <div class="mb-6 space-y-4">
+        <h3 class="text-lg font-semibold">Scores</h3>
+        {#each categorizeScores(loader.transcript?.scores || {}) as { category, label, items }}
+          <div class="space-y-2">
+            <h4 class="text-sm font-medium text-base-content/70">{label}</h4>
+            <div class="flex flex-wrap gap-2">
+              {#each items as [key, value]}
+                <ScoreTooltip
+                  id="score-{key}"
+                  score={value}
+                  scoreName={key}
+                  description={loader.transcript?.scoreDescriptions?.[key]}
+                  isPetriDefault={PETRI_DEFAULT_SCORES.has(key)}
+                  onClick={handleScoreClick}
+                />
+              {/each}
+            </div>
+          </div>
+        {/each}
       </div>
 
       <!-- Tags -->
@@ -276,7 +507,7 @@
       <!-- Judge Justification -->
       <!-- svelte-ignore a11y_click_events_have_key_events -->
       <!-- svelte-ignore a11y_no_static_element_interactions -->
-      <div class="mb-4" onclick={handleCitationClick}>
+      <div id="judge-justification" class="mb-4" onclick={handleCitationClick}>
         <h3 class="text-lg font-semibold mb-2">Judge Justification</h3>
         <p class="text-sm leading-relaxed whitespace-pre-wrap">{@html renderCitations(loader.transcript?.justification)}</p>
       </div>
@@ -287,7 +518,7 @@
         <!-- svelte-ignore a11y_no_static_element_interactions -->
         <div class="mb-4 p-4 bg-base-200 rounded-lg" onclick={handleCitationClick}>
           <h3 class="text-lg font-semibold mb-2">Character Analysis</h3>
-          <p class="text-sm leading-relaxed whitespace-pre-wrap">{@html renderCitations(loader.transcript.characterAnalysis)}</p>
+          <div class="prose prose-sm max-w-none">{@html renderMarkdownWithCitations(loader.transcript.characterAnalysis)}</div>
         </div>
       {/if}
 
