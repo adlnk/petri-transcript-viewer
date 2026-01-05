@@ -76,6 +76,44 @@
 
   let hasFilters = $derived(includedTags.length > 0 || excludedTags.length > 0);
 
+  // Group tags by namespace for organized display
+  let groupedTags = $derived.by(() => {
+    const groups: Record<string, string[]> = {
+      'strategy': [],
+      'target': [],
+      'wave': [],
+      'other': [],
+    };
+
+    for (const tag of allTags) {
+      if (tag.startsWith('strategy:')) {
+        groups['strategy'].push(tag);
+      } else if (tag.startsWith('target:')) {
+        groups['target'].push(tag);
+      } else if (tag.startsWith('wave')) {
+        groups['wave'].push(tag);
+      } else {
+        groups['other'].push(tag);
+      }
+    }
+
+    // Filter out empty groups and sort each group
+    return Object.entries(groups)
+      .filter(([_, tags]) => tags.length > 0)
+      .map(([name, tags]) => ({ name, tags: tags.sort() }));
+  });
+
+  // Get display name for group
+  function getGroupDisplayName(name: string): string {
+    switch (name) {
+      case 'strategy': return 'Strategy';
+      case 'target': return 'Target Behavior';
+      case 'wave': return 'Wave';
+      case 'other': return 'Other';
+      default: return name;
+    }
+  }
+
   function toggleDropdown() {
     if (!isOpen && buttonElement) {
       const rect = buttonElement.getBoundingClientRect();
@@ -156,20 +194,28 @@
     {#if allTags.length === 0}
       <div class="text-xs text-base-content/50 px-2 py-1">No tags in data</div>
     {:else}
-      {#each allTags as tag}
-        {@const state = getTagState(tag)}
-        <div class="flex w-full gap-1 p-1 items-center hover:bg-base-200 rounded">
-          <span class="flex-1 text-sm truncate">{tag}</span>
-          <button
-            class="btn btn-xs {state === 'include' ? 'btn-success' : 'btn-ghost'}"
-            title="Include: show only rows with this tag"
-            onclick={() => state === 'include' ? removeTag(tag) : includeTag(tag)}
-          >+</button>
-          <button
-            class="btn btn-xs {state === 'exclude' ? 'btn-error' : 'btn-ghost'}"
-            title="Exclude: hide rows with this tag"
-            onclick={() => state === 'exclude' ? removeTag(tag) : excludeTag(tag)}
-          >-</button>
+      {#each groupedTags as group}
+        <div class="mb-2">
+          <div class="text-xs font-semibold text-base-content/60 px-1 mb-1 uppercase tracking-wide">
+            {getGroupDisplayName(group.name)}
+          </div>
+          {#each group.tags as tag}
+            {@const state = getTagState(tag)}
+            {@const displayTag = tag.includes(':') ? tag.split(':')[1] : tag}
+            <div class="flex w-full gap-1 p-1 items-center hover:bg-base-200 rounded">
+              <span class="flex-1 text-sm truncate" title={tag}>{displayTag}</span>
+              <button
+                class="btn btn-xs {state === 'include' ? 'btn-success' : 'btn-ghost'}"
+                title="Include: show only rows with this tag"
+                onclick={() => state === 'include' ? removeTag(tag) : includeTag(tag)}
+              >+</button>
+              <button
+                class="btn btn-xs {state === 'exclude' ? 'btn-error' : 'btn-ghost'}"
+                title="Exclude: hide rows with this tag"
+                onclick={() => state === 'exclude' ? removeTag(tag) : excludeTag(tag)}
+              >-</button>
+            </div>
+          {/each}
         </div>
       {/each}
     {/if}

@@ -263,12 +263,22 @@ export interface JudgeOutput {
   sub_judge_results?: any[];
 }
 
+// Processing metadata (moved from tags)
+export interface ProcessingMetadata {
+  scoring_method?: 'independent' | 'single_judge';
+  has_character_analysis?: boolean;
+  rejudged?: boolean;
+  rejudged_dimensions?: string[];
+  added_dimensions?: string[];
+}
+
 export interface TranscriptMetadata {
   transcript_id: string;
   auditor_model?: string;
   target_model?: string;
   created_at: string;
   updated_at: string;
+  processing?: ProcessingMetadata;
   version?: 'v3.0';
   description?: string;
   short_name?: string;

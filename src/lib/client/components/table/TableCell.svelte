@@ -4,6 +4,25 @@
   import type { TableRow, RowDensity } from '$lib/shared/types';
   import { debugLog } from '$lib/client/utils/debug';
 
+  // Get badge class for namespaced tags
+  function getTagBadgeClass(tag: string): string {
+    if (tag.startsWith('strategy:')) {
+      return 'badge-primary badge-outline';  // Blue for strategy
+    } else if (tag.startsWith('target:')) {
+      return 'badge-warning badge-outline';  // Yellow/orange for target behavior
+    } else if (tag.startsWith('wave')) {
+      return 'badge-info badge-outline';  // Cyan for wave markers
+    } else {
+      return 'badge-outline';  // Default gray for other tags
+    }
+  }
+
+  // Format tag for display (optionally strip namespace prefix)
+  function formatTagDisplay(tag: string): string {
+    // Keep full tag for now - namespace prefixes are informative
+    return tag;
+  }
+
   interface Props {
     cell: any;
     row: any;
@@ -166,7 +185,7 @@
       {#if visibleTags.length > 0}
         <div class="flex gap-1 {rowDensity === 'compact' ? 'flex-nowrap overflow-hidden' : 'flex-wrap'}">
           {#each visibleTags as tag}
-            <span class="badge badge-outline badge-sm flex-shrink-0">{tag}</span>
+            <span class="badge {getTagBadgeClass(tag)} badge-sm flex-shrink-0">{formatTagDisplay(tag)}</span>
           {/each}
         </div>
       {:else if rowData.tags && rowData.tags.length > 0}
