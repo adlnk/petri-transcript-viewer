@@ -53,6 +53,8 @@ function createTranscriptDisplayFromRaw(transcript: any, filePath: string): Tran
     justification: transcript.metadata?.judge_output?.justification || 'No justification available',
     characterAnalysis: transcript.metadata?.judge_output?.character_analysis,
     tags: transcript.metadata?.tags || [],
+    userTags: transcript.metadata?.user_tags || [],
+    shareOnline: transcript.metadata?.share_online,
     systemPrompt: extractSystemPrompt(transcript),
     transcript: transcript,
     _filePath: filePath
@@ -171,8 +173,15 @@ export function createTranscriptLoader(filePath: string) {
     }
   };
 
-  const loadTranscript = async (): Promise<TranscriptDisplay | null> => {
-    if (transcript) return transcript;
+  const loadTranscript = async (forceReload = false): Promise<TranscriptDisplay | null> => {
+    if (transcript && !forceReload) return transcript;
+
+    // Clear cache for this file if force reloading
+    if (forceReload) {
+      transcriptCache.delete(filePath);
+      transcript = null;
+      metadata = null;
+    }
 
     transcriptLoading = true;
     transcriptError = null;

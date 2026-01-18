@@ -8,6 +8,10 @@
   import ScoreTooltip from '$lib/client/components/common/ScoreTooltip.svelte';
   import { JsonViewer } from '@kaifronsdal/svelte-json-viewer';
   import MarkdownIt from 'markdown-it';
+  import { adminMode } from '$lib/client/stores/admin.svelte';
+  import TagEditor from '$lib/client/components/admin/TagEditor.svelte';
+  import TagChip from '$lib/client/components/admin/TagChip.svelte';
+  import ShareToggle from '$lib/client/components/admin/ShareToggle.svelte';
 
   // Markdown renderer for Character Analysis
   const md = new MarkdownIt({ html: false, breaks: true, linkify: true });
@@ -128,6 +132,14 @@
   let showApiFailures = $state(false);
   let showSharedHistory = $state(true);
   let showSystemPrompt = $state(false);
+
+  // Admin mode state
+  let isEditingTags = $state(false);
+
+  // Handler for tag/share updates - force reload transcript to show changes
+  function handleMetadataUpdate() {
+    loader.loadTranscript(true);
+  }
 
   // Message state management
   let openMessages: Record<string, boolean> = $state({});
@@ -484,17 +496,64 @@
         {/each}
       </div>
 
-      <!-- Tags -->
-      {#if loader.metadata?.tags && loader.metadata.tags.length > 0}
+      <!-- Share Online Status (admin mode) -->
+      {#if adminMode.isAdminMode}
         <div class="mb-4">
-          <h3 class="text-lg font-semibold mb-2">Tags</h3>
-          <div class="flex flex-wrap gap-2">
-            {#each loader.metadata.tags as tag}
-              <span class="badge badge-outline">{tag}</span>
-            {/each}
-          </div>
+          <h3 class="text-lg font-semibold mb-2">Sharing</h3>
+          <ShareToggle
+            filePath={filePath}
+            shareOnline={loader.metadata?.shareOnline ?? false}
+            onToggle={handleMetadataUpdate}
+          />
         </div>
       {/if}
+
+      <!-- Tags -->
+      <div class="mb-4">
+        <div class="flex items-center gap-2 mb-2">
+          <h3 class="text-lg font-semibold">Tags</h3>
+          {#if adminMode.isAdminMode && !isEditingTags}
+            <button
+              class="btn btn-ghost btn-xs"
+              onclick={() => isEditingTags = true}
+              title="Edit tags"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+              </svg>
+            </button>
+          {/if}
+        </div>
+
+        {#if adminMode.isAdminMode && isEditingTags}
+          <!-- Tag Editor (admin mode) -->
+          <TagEditor
+            filePath={filePath}
+            tags={loader.metadata?.tags || []}
+            userTags={loader.metadata?.userTags || []}
+            onSave={() => {
+              isEditingTags = false;
+              handleMetadataUpdate();
+            }}
+            onCancel={() => isEditingTags = false}
+          />
+        {:else}
+          <!-- Display tags -->
+          {@const allTags = [...(loader.metadata?.tags || []), ...(loader.metadata?.userTags || [])]}
+          {#if allTags.length > 0}
+            <div class="flex flex-wrap gap-2">
+              {#each loader.metadata?.tags || [] as tag}
+                <TagChip {tag} />
+              {/each}
+              {#each loader.metadata?.userTags || [] as tag}
+                <TagChip {tag} isUserTag={true} />
+              {/each}
+            </div>
+          {:else}
+            <p class="text-base-content/50 text-sm">No tags</p>
+          {/if}
+        {/if}
+      </div>
 
       <!-- Judge Summary -->
       <!-- svelte-ignore a11y_click_events_have_key_events -->

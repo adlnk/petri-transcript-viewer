@@ -132,6 +132,8 @@ export function createTranscriptDisplay(
     justification: transcript.metadata.judge_output?.justification || 'No justification available',
     characterAnalysis: transcript.metadata.judge_output?.character_analysis,
     tags: transcript.metadata.tags || [],
+    userTags: transcript.metadata.user_tags || [],
+    shareOnline: transcript.metadata.share_online,
     systemPrompt: extractSystemPrompt(transcript),
     transcript: transcript,
     _filePath: filePath
@@ -165,6 +167,8 @@ export function extractTranscriptMetadata(
     justification: transcript.metadata.judge_output?.justification || 'No justification available',
     characterAnalysis: transcript.metadata.judge_output?.character_analysis,
     tags: transcript.metadata.tags || [],
+    userTags: transcript.metadata.user_tags || [],
+    shareOnline: transcript.metadata.share_online,
     systemPrompt: undefined, // Don't extract system prompt for metadata-only
     _filePath: filePath
   };

@@ -30,6 +30,8 @@
   import { buildTranscriptUrl, normalizeClientFilePath } from '$lib/client/utils/file-utils';
   import { loadColumnVisibility, saveColumnVisibility } from '$lib/client/utils/table-persistence';
   import { debugLog } from '$lib/client/utils/debug';
+  import { adminMode } from '$lib/client/stores/admin.svelte';
+  import { selection } from '$lib/client/stores/selection.svelte';
 
   // Row heights for different density modes
   const ROW_HEIGHTS: Record<RowDensity, number> = {
@@ -166,7 +168,7 @@
   // TanStack Table options as a writable store to avoid re-creating the table
   let options = writable<TableOptions<TableRow>>({
     data: [],
-    columns: createColumns(scoreTypes || [], [], scoreDescriptions || {}),
+    columns: createColumns(scoreTypes || [], [], scoreDescriptions || {}, adminMode.isAdminMode),
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getSortedRowModel: getSortedRowModel(),
@@ -204,7 +206,7 @@
   // 1) Update data/columns only when inputs change
   $effect(() => {
     const currentData = tableData || [];
-    const currentColumns = createColumns(scoreTypes || [], currentData, scoreDescriptions || {});
+    const currentColumns = createColumns(scoreTypes || [], currentData, scoreDescriptions || {}, adminMode.isAdminMode);
     options.update(old => ({
       ...old,
       data: currentData,
@@ -337,7 +339,7 @@
   // Debug effect (dev only)
   $effect(() => {
     if (!import.meta.env?.DEV) return;
-    const columns = createColumns(scoreTypes || [], tableData || [], scoreDescriptions || {});
+    const columns = createColumns(scoreTypes || [], tableData || [], scoreDescriptions || {}, adminMode.isAdminMode);
     void columns;
   });
 
@@ -373,7 +375,7 @@
   }
 
   // Get all column info for the visibility toggle
-  let allColumnInfo = $derived(getAllColumnInfo(scoreTypes));
+  let allColumnInfo = $derived(getAllColumnInfo(scoreTypes, adminMode.isAdminMode));
 </script>
 
 <div class="w-full">
@@ -420,7 +422,30 @@
                   style="position: relative;"
                 >
                   {#if !header.isPlaceholder}
-                    {#if header.column.id === 'tags'}
+                    {#if header.column.id === 'select'}
+                      <!-- Select all checkbox for admin mode -->
+                      {@const allPaths = table.getRowModel().rows
+                        .filter(r => r.original.type === 'transcript' && r.original.originalTranscript?._filePath)
+                        .map(r => r.original.originalTranscript!._filePath)}
+                      {@const allSelected = allPaths.length > 0 && allPaths.every(p => selection.isSelected(p))}
+                      {@const someSelected = allPaths.some(p => selection.isSelected(p))}
+                      <div class="flex items-center justify-center h-full w-full">
+                        <input
+                          type="checkbox"
+                          class="checkbox checkbox-sm"
+                          checked={allSelected}
+                          indeterminate={someSelected && !allSelected}
+                          onclick={() => {
+                            if (allSelected) {
+                              selection.clear();
+                            } else {
+                              selection.selectAll(allPaths);
+                            }
+                          }}
+                          title={allSelected ? 'Deselect all' : 'Select all visible'}
+                        />
+                      </div>
+                    {:else if header.column.id === 'tags'}
                       <div class="flex items-center gap-2 h-full w-full">
                         <TagsFilterHeader column={header.column} allTags={allTags} />
                       </div>

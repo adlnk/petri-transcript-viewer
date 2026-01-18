@@ -20,6 +20,8 @@ interface Transcript {
     target_model?: string;
     description?: string;
     tags?: string[];
+    user_tags?: string[];
+    share_online?: boolean;
     judge_output?: {
       scores?: Record<string, number>;
       score_descriptions?: Record<string, string>;
@@ -52,6 +54,8 @@ interface TranscriptDisplayMeta {
   justification: string;
   characterAnalysis?: string;
   tags: string[];
+  userTags?: string[];
+  shareOnline?: boolean;
   systemPrompt?: string;
   _filePath: string;
 }
@@ -120,6 +124,8 @@ function createTranscriptDisplay(transcript: Transcript, filePath: string): Tran
     justification: transcript.metadata.judge_output?.justification || 'No justification available',
     characterAnalysis: transcript.metadata.judge_output?.character_analysis,
     tags: transcript.metadata.tags || [],
+    userTags: transcript.metadata.user_tags || [],
+    shareOnline: transcript.metadata.share_online,
     systemPrompt: extractSystemPrompt(transcript),
     transcript: transcript,
     _filePath: filePath
@@ -145,6 +151,8 @@ function extractTranscriptMetadata(transcript: Transcript, filePath: string): Tr
     justification: transcript.metadata.judge_output?.justification || 'No justification available',
     characterAnalysis: transcript.metadata.judge_output?.character_analysis,
     tags: transcript.metadata.tags || [],
+    userTags: transcript.metadata.user_tags || [],
+    shareOnline: transcript.metadata.share_online,
     systemPrompt: undefined,
     _filePath: filePath
   };
@@ -176,25 +184,32 @@ function findJsonFiles(dir: string, baseDir: string = dir): string[] {
 }
 
 // Parse arguments
-function parseArgs(): { dir: string } {
+function parseArgs(): { dir: string; tagsFile?: string } {
   const args = process.argv.slice(2);
   let dir = './transcripts'; // default
+  let tagsFile: string | undefined;
 
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--dir' && args[i + 1]) {
       dir = args[i + 1];
       i++;
+    } else if (args[i] === '--tags' && args[i + 1]) {
+      tagsFile = args[i + 1];
+      i++;
     }
   }
 
-  return { dir };
+  return { dir, tagsFile };
 }
 
 async function main() {
-  const { dir } = parseArgs();
+  const { dir, tagsFile } = parseArgs();
   const transcriptDir = path.resolve(dir);
 
   console.log(`Bundling transcripts from: ${transcriptDir}`);
+  if (tagsFile) {
+    console.log(`Tags file: ${tagsFile}`);
+  }
 
   if (!fs.existsSync(transcriptDir)) {
     console.error(`Error: Transcript directory does not exist: ${transcriptDir}`);
@@ -267,6 +282,18 @@ export const BUNDLE_TRANSCRIPT_COUNT = ${metadataList.length};
   // Generate lightweight metadata index for client-side use (no full transcripts)
   const staticDir = path.join(__dirname, '../static/data');
   fs.mkdirSync(staticDir, { recursive: true });
+
+  // Copy tags.yaml if provided
+  if (tagsFile) {
+    const tagsFilePath = path.resolve(tagsFile);
+    if (fs.existsSync(tagsFilePath)) {
+      const tagsDestPath = path.join(staticDir, 'tags.yaml');
+      fs.copyFileSync(tagsFilePath, tagsDestPath);
+      console.log(`Copied tags.yaml to: ${tagsDestPath}`);
+    } else {
+      console.warn(`Warning: Tags file not found: ${tagsFilePath}`);
+    }
+  }
 
   const metadataIndex = {
     metadata: metadataList,

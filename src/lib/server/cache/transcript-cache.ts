@@ -258,13 +258,13 @@ export class TranscriptCache {
   }
 
   /**
-   * Invalidate cache entries for a specific file
+   * Invalidate cache entries for a specific file (internal)
    */
   private invalidateFile(filePath: string): void {
     const normalizedPath = path.normalize(filePath);
-    
+
     let invalidated = false;
-    
+
     if (this.metadataCache.has(normalizedPath)) {
       this.metadataCache.delete(normalizedPath);
       invalidated = true;
@@ -280,6 +280,15 @@ export class TranscriptCache {
     if (invalidated) {
       this.updateStats();
     }
+  }
+
+  /**
+   * Public method to invalidate cache for a specific transcript (for admin mode edits)
+   */
+  invalidateTranscript(filePath: string): void {
+    this.invalidateFile(filePath);
+    // Also bump version to notify any listeners
+    this.bumpVersionAndEmit('change', filePath);
   }
 
   /**

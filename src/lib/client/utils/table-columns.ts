@@ -3,6 +3,13 @@ import type { TableRow } from '$lib/shared/types';
 import { extractFirstSentence } from '$lib/shared/utils/transcript-utils';
 import { debugLog } from '$lib/client/utils/debug';
 
+export interface CreateColumnsOptions {
+  scoreTypes: string[];
+  data?: TableRow[];
+  scoreDescriptions?: Record<string, string>;
+  isAdminMode?: boolean;
+}
+
 /**
  * Calculate optimal width for ID column based on content and nesting depth
  */
@@ -63,9 +70,34 @@ const PRIORITY_SCORE_TYPES = [
 ];
 
 // Use the unified TableRow type directly (no more TreeTableRow duplication)
-export function createColumns(scoreTypes: string[], data: TableRow[] = [], scoreDescriptions: Record<string, string> = {}): ColumnDef<TableRow>[] {
+export function createColumns(scoreTypes: string[], data: TableRow[] = [], scoreDescriptions: Record<string, string> = {}, isAdminMode: boolean = false): ColumnDef<TableRow>[] {
   // Calculate dynamic width for ID column
   const idColumnWidth = calculateIdColumnWidth(data);
+
+  // Admin columns (selection checkbox, share toggle)
+  const adminColumns: ColumnDef<TableRow>[] = isAdminMode ? [
+    {
+      id: 'select',
+      header: '', // Will render checkbox via TableCell
+      cell: () => '', // Rendered via TableCell
+      enableSorting: false,
+      enableResizing: false,
+      size: 40,
+      minSize: 40,
+      maxSize: 40,
+    },
+    {
+      id: 'share',
+      header: 'Share',
+      accessorFn: (row) => row.shareOnline,
+      cell: () => '', // Rendered via TableCell
+      enableSorting: true,
+      enableResizing: false,
+      size: 60,
+      minSize: 60,
+    },
+  ] : [];
+
   const baseColumns: ColumnDef<TableRow>[] = [
     {
       id: 'id',
@@ -235,7 +267,7 @@ export function createColumns(scoreTypes: string[], data: TableRow[] = [], score
     };
   });
 
-  return [...baseColumns, ...scoreColumns];
+  return [...adminColumns, ...baseColumns, ...scoreColumns];
 }
 
 export function getDefaultColumnVisibility(scoreTypes: string[]) {
@@ -255,8 +287,14 @@ export function getDefaultColumnVisibility(scoreTypes: string[]) {
   return visibility;
 }
 
-export function getAllColumnInfo(scoreTypes: string[]) {
+export function getAllColumnInfo(scoreTypes: string[], isAdminMode: boolean = false) {
+  const adminInfo = isAdminMode ? [
+    { id: 'select', header: 'Select' },
+    { id: 'share', header: 'Share' },
+  ] : [];
+
   return [
+    ...adminInfo,
     { id: 'id', header: 'ID' },
     { id: 'model', header: 'Model' },
     { id: 'tags', header: 'Tags' },

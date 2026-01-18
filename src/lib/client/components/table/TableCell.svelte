@@ -3,6 +3,8 @@
   import { getScoreColor } from '$lib/shared/score-utils';
   import type { TableRow, RowDensity } from '$lib/shared/types';
   import { debugLog } from '$lib/client/utils/debug';
+  import { selection } from '$lib/client/stores/selection.svelte';
+  import ShareToggle from '$lib/client/components/admin/ShareToggle.svelte';
 
   // Get badge class for namespaced tags
   function getTagBadgeClass(tag: string): string {
@@ -137,11 +139,42 @@
   <!-- Data row cells -->
   {@const cellElement = isGridCell ? 'div' : 'td'}
   {@const baseClasses = isGridCell ? 'px-3 py-3 overflow-x-auto overflow-y-hidden table-cell-no-scrollbar border-b border-base-200 flex items-center min-h-[60px]' : 'px-3 py-3 overflow-x-auto overflow-y-hidden table-cell-no-scrollbar'}
-  {@const cellStyle = isGridCell ? 
+  {@const cellStyle = isGridCell ?
     `${virtualItemSize ? `height: ${virtualItemSize}px;` : ''} ${virtualItemTransform ? `transform: ${virtualItemTransform};` : ''}` :
     `width: ${cellWidth}px; min-width: ${cellWidth}px;`}
-  
-  {#if cell.column.id === 'id'}
+
+  {#if cell.column.id === 'select'}
+    <!-- Selection checkbox (admin mode) -->
+    {@const filePath = rowData.originalTranscript?._filePath || ''}
+    <svelte:element
+      this={cellElement}
+      class="{baseClasses} justify-center"
+      style="{cellStyle}"
+    >
+      <input
+        type="checkbox"
+        class="checkbox checkbox-sm"
+        checked={selection.isSelected(filePath)}
+        onclick={(e: Event) => {
+          e.preventDefault();
+          e.stopPropagation();
+          selection.toggle(filePath);
+        }}
+      />
+    </svelte:element>
+  {:else if cell.column.id === 'share'}
+    <!-- Share toggle (admin mode) -->
+    {@const filePath = rowData.originalTranscript?._filePath || ''}
+    {@const shareOnline = rowData.shareOnline ?? false}
+    <svelte:element
+      this={cellElement}
+      class="{baseClasses} justify-center"
+      style="{cellStyle}"
+      onclick={(e: Event) => e.stopPropagation()}
+    >
+      <ShareToggle {filePath} {shareOnline} compact={true} />
+    </svelte:element>
+  {:else if cell.column.id === 'id'}
     <svelte:element
       this={cellElement}
       class="font-mono text-sm {baseClasses}"
@@ -177,20 +210,27 @@
       return new Set<string>();
     })()}
     {@const visibleTags = rowData.tags?.filter(t => !filteredOutTags.has(t)) || []}
+    {@const visibleUserTags = rowData.userTags?.filter(t => !filteredOutTags.has(t)) || []}
+    {@const totalVisibleTags = visibleTags.length + visibleUserTags.length}
+    {@const totalTags = (rowData.tags?.length || 0) + (rowData.userTags?.length || 0)}
     <svelte:element
       this={cellElement}
       class="{baseClasses}"
       style="{cellStyle}"
     >
-      {#if visibleTags.length > 0}
+      {#if totalVisibleTags > 0}
         <div class="flex gap-1 {rowDensity === 'compact' ? 'flex-nowrap overflow-hidden' : 'flex-wrap'}">
           {#each visibleTags as tag}
             <span class="badge {getTagBadgeClass(tag)} badge-sm flex-shrink-0">{formatTagDisplay(tag)}</span>
           {/each}
+          {#each visibleUserTags as tag}
+            <!-- User tags with dashed border style -->
+            <span class="badge badge-sm flex-shrink-0 border-dashed border-2 {getTagBadgeClass(tag)}" title="User-added tag">{formatTagDisplay(tag)}</span>
+          {/each}
         </div>
-      {:else if rowData.tags && rowData.tags.length > 0}
+      {:else if totalTags > 0}
         <!-- All tags are filtered, show indicator -->
-        <span class="text-base-content/40 text-xs italic">({rowData.tags.length} filtered)</span>
+        <span class="text-base-content/40 text-xs italic">({totalTags} filtered)</span>
       {:else}
         <span class="text-base-content/50">—</span>
       {/if}

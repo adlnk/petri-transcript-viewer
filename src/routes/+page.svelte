@@ -6,7 +6,9 @@
 	import FilterControls from '$lib/client/components/common/FilterControls.svelte';
 	import ViewModeToggle from '$lib/client/components/common/ViewModeToggle.svelte';
 	import ErrorDisplay from '$lib/client/components/ErrorDisplay.svelte';
+	import BulkActionBar from '$lib/client/components/admin/BulkActionBar.svelte';
 	import { filterState, viewSettings, initializeStores } from '$lib/client/stores';
+	import { adminMode } from '$lib/client/stores/admin.svelte';
 	import { createFilterFunction } from '$lib/shared/filter-utils';
 	import { createTranscriptDataLoader } from '$lib/shared/services/transcript-data.svelte';
 	import { extractAllTranscriptsFromTree, filterFolderTree } from '$lib/client/utils/folder-tree';
@@ -140,6 +142,11 @@
 		window.location.href = `${base}/transcript/${encodedPath}`;
 	}
 
+	// Refresh data after bulk operations (admin mode)
+	function handleBulkUpdate() {
+		dataLoader.loadData('list', currentPath || undefined);
+	}
+
 	// Folder expansion is now handled entirely by TranscriptTable
 </script>
 
@@ -259,5 +266,10 @@
 				/>
 			</div>
 		</div>
+	{/if}
+
+	<!-- Bulk Action Bar (admin mode only) -->
+	{#if adminMode.isAdminMode}
+		<BulkActionBar onUpdate={handleBulkUpdate} />
 	{/if}
 </div>

@@ -17,6 +17,8 @@ export function transcriptToTableRow(transcript: TranscriptDisplay): TableRow {
     judgeSummary: transcript.judgeSummary,
     justification: transcript.justification,
     tags: transcript.tags,
+    userTags: transcript.userTags,
+    shareOnline: transcript.shareOnline,
     originalTranscript: transcript,
   };
 }

@@ -5,6 +5,7 @@
 	import { isDarkMode, initializeTheme, toggleTheme } from '$lib/shared/theme';
 	import { onMount } from 'svelte';
 	import PasswordGate from '$lib/client/components/auth/PasswordGate.svelte';
+	import AdminModeIndicator from '$lib/client/components/admin/AdminModeIndicator.svelte';
 
 	let { children } = $props();
 
@@ -43,6 +44,9 @@
 					</label>
 				</div>
 			</div>
+
+			<!-- Admin mode indicator (shows only in local/admin mode) -->
+			<AdminModeIndicator />
 
 			<main>
 				{@render children()}

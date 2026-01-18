@@ -283,6 +283,8 @@ export interface TranscriptMetadata {
   description?: string;
   short_name?: string;
   tags?: string[];
+  user_tags?: string[];        // Manually added tags (admin mode)
+  share_online?: boolean;      // true = include in online viewer
   judge_output?: JudgeOutput;
 }
 
@@ -306,6 +308,8 @@ export interface TranscriptDisplayMeta {
   justification: string;
   characterAnalysis?: string;
   tags?: string[];
+  userTags?: string[];         // Manually added tags (admin mode)
+  shareOnline?: boolean;       // true = include in online viewer
   systemPrompt?: string;
   _filePath?: string;
 }
@@ -407,6 +411,8 @@ export interface TableRow {
   judgeSummary?: string;
   justification?: string;
   tags?: string[];
+  userTags?: string[];         // Manually added tags (admin mode)
+  shareOnline?: boolean;       // true = include in online viewer
   originalTranscript?: TranscriptDisplay;
 }
 
@@ -417,6 +423,17 @@ export type TranscriptNode = TableRow & { type: 'transcript' };
 
 // Legacy alias for backward compatibility during migration
 export type FolderNodeWithStats = FolderNode;
+
+// Tag taxonomy types (for admin mode autocomplete)
+export interface TagTaxonomy {
+  namespaced: Record<string, string[]>;  // e.g., { strategy: [...], target: [...] }
+  plain: string[];                        // Non-namespaced tags
+}
+
+export interface TagsResponse {
+  predefined: string[];   // From tags.yaml
+  existing: string[];     // From loaded transcripts
+}
 
 // Directory and loading types (shared between client and server)
 export interface DirectoryInfo {
