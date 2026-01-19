@@ -1,4 +1,4 @@
-import type { VisibilityState, ColumnSizingState } from '@tanstack/svelte-table';
+import type { VisibilityState, ColumnSizingState, ColumnFiltersState } from '@tanstack/svelte-table';
 import { STORAGE_KEYS } from '$lib/shared/constants';
 
 /**
@@ -63,10 +63,51 @@ export function loadColumnSizing(): ColumnSizingState {
  */
 export function saveColumnSizing(columnSizing: ColumnSizingState): void {
   if (typeof window === 'undefined') return;
-  
+
   try {
     localStorage.setItem(STORAGE_KEYS.COLUMN_SIZING, JSON.stringify(columnSizing));
   } catch (error) {
     console.warn('Failed to save column sizing to localStorage:', error);
+  }
+}
+
+/**
+ * Load column filters from localStorage
+ */
+export function loadColumnFilters(): ColumnFiltersState {
+  if (typeof window === 'undefined') return [];
+
+  try {
+    const stored = localStorage.getItem(STORAGE_KEYS.FILTER_STATE);
+    return stored ? JSON.parse(stored) : [];
+  } catch (error) {
+    console.warn('Failed to load column filters from localStorage:', error);
+    return [];
+  }
+}
+
+/**
+ * Save column filters to localStorage
+ */
+export function saveColumnFilters(columnFilters: ColumnFiltersState): void {
+  if (typeof window === 'undefined') return;
+
+  try {
+    localStorage.setItem(STORAGE_KEYS.FILTER_STATE, JSON.stringify(columnFilters));
+  } catch (error) {
+    console.warn('Failed to save column filters to localStorage:', error);
+  }
+}
+
+/**
+ * Clear column filters from localStorage
+ */
+export function clearColumnFilters(): void {
+  if (typeof window === 'undefined') return;
+
+  try {
+    localStorage.removeItem(STORAGE_KEYS.FILTER_STATE);
+  } catch (error) {
+    console.warn('Failed to clear column filters from localStorage:', error);
   }
 }

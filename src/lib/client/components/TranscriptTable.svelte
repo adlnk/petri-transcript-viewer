@@ -28,7 +28,7 @@
   import TagsFilterHeader from '$lib/client/components/table/TagsFilterHeader.svelte';
   import ModelFilterHeader from '$lib/client/components/table/ModelFilterHeader.svelte';
   import { buildTranscriptUrl, normalizeClientFilePath } from '$lib/client/utils/file-utils';
-  import { loadColumnVisibility, saveColumnVisibility } from '$lib/client/utils/table-persistence';
+  import { loadColumnVisibility, saveColumnVisibility, loadColumnFilters, saveColumnFilters } from '$lib/client/utils/table-persistence';
   import { debugLog } from '$lib/client/utils/debug';
   import { adminMode } from '$lib/client/stores/admin.svelte';
   import { selection } from '$lib/client/stores/selection.svelte';
@@ -123,9 +123,9 @@
     saveColumnVisibility(columnVisibility);
   };
 
-  // Svelte 5 reactive state for column filters
-  let columnFilters = $state<any[]>([]);
-  
+  // Svelte 5 reactive state for column filters - load from localStorage
+  let columnFilters = $state<any[]>(loadColumnFilters());
+
   // Minimal controlled sorting handler
   const handleSortingChange: OnChangeFn<SortingState> = (updaterOrValue) => {
     sorting = updaterOrValue instanceof Function ? updaterOrValue(sorting) : updaterOrValue;
@@ -139,7 +139,17 @@
       newFilters = updaterOrValue;
     }
     columnFilters = newFilters;
+    saveColumnFilters(newFilters);
   };
+
+  // Check if any filters are active
+  let hasActiveFilters = $derived(columnFilters.length > 0);
+
+  // Clear all filters
+  function clearAllFilters() {
+    columnFilters = [];
+    saveColumnFilters([]);
+  }
 
   // Robust header click that toggles sorting exactly once
   function handleHeaderClick(column: any, event: MouseEvent) {
@@ -396,7 +406,19 @@
     </div>
     
     <div class="flex items-center gap-2">
-      <TableColumnVisibilityToggle 
+      {#if hasActiveFilters}
+        <button
+          class="btn btn-sm btn-ghost text-error"
+          onclick={clearAllFilters}
+          title="Clear all filters"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+          Clear Filters
+        </button>
+      {/if}
+      <TableColumnVisibilityToggle
         columnVisibility={table.getState().columnVisibility}
         allColumns={allColumnInfo}
         onToggle={handleColumnVisibilityToggle}
