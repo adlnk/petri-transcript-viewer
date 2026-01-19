@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { tick } from 'svelte';
 	import { invalidateListDataCache } from '$lib/shared/services/transcript-data.svelte';
 
 	interface Props {
@@ -49,7 +50,9 @@
 			// Call onToggle and wait for reload to complete (if handler provided)
 			if (onToggle) {
 				await onToggle(newValue);
-				// After reload completes, prop should match our pending value, so clear it
+				// Wait for Svelte to propagate prop updates from parent re-render
+				await tick();
+				// Now prop should match our pending value, so clear it
 				console.log('[ShareToggle] Reload complete, clearing pending value');
 				pendingValue = null;
 			} else {
