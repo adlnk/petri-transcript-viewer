@@ -535,17 +535,19 @@
         </div>
 
         {#if adminMode.isAdminMode && isEditingTags}
-          <!-- Tag Editor (admin mode) -->
-          <TagEditor
-            filePath={filePath}
-            tags={loader.transcript?.tags || []}
-            userTags={loader.transcript?.userTags || []}
-            onSave={async () => {
-              await handleMetadataUpdate();
-              isEditingTags = false;
-            }}
-            onCancel={() => isEditingTags = false}
-          />
+          <!-- Tag Editor (admin mode) - keyed by userTags to force remount with fresh state -->
+          {#key JSON.stringify(loader.transcript?.userTags || [])}
+            <TagEditor
+              filePath={filePath}
+              tags={loader.transcript?.tags || []}
+              userTags={loader.transcript?.userTags || []}
+              onSave={async () => {
+                await handleMetadataUpdate();
+                isEditingTags = false;
+              }}
+              onCancel={() => isEditingTags = false}
+            />
+          {/key}
         {:else}
           <!-- Display tags -->
           {@const allTags = [...(loader.transcript?.tags || []), ...(loader.transcript?.userTags || [])]}

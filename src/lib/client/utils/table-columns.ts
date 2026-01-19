@@ -184,7 +184,10 @@ export function createColumns(scoreTypes: string[], data: TableRow[] = [], score
 
         if (include.length === 0 && exclude.length === 0) return true;
 
-        const rowTags: string[] = Array.isArray((row.original as any).tags) ? (row.original as any).tags : [];
+        // Combine original tags and user-added tags for filtering
+        const originalTags: string[] = Array.isArray((row.original as any).tags) ? (row.original as any).tags : [];
+        const userTags: string[] = Array.isArray((row.original as any).userTags) ? (row.original as any).userTags : [];
+        const rowTags: string[] = [...originalTags, ...userTags];
 
         // Include: show if row has at least one of the included tags (OR semantics)
         const passesInclude = include.length === 0 || include.some((t) => rowTags.includes(t));

@@ -308,11 +308,19 @@
   });
 
   // Compute all unique tags from the full transcripts list (more reliable than row data)
+  // Includes both original tags and user-added tags
   let allTags = $derived.by(() => {
     const set = new Set<string>();
     (transcripts || []).forEach((t) => {
+      // Add original tags
       if (Array.isArray((t as any).tags)) {
         for (const tag of (t as any).tags as string[]) {
+          if (tag && typeof tag === 'string') set.add(tag);
+        }
+      }
+      // Add user-added tags
+      if (Array.isArray((t as any).userTags)) {
+        for (const tag of (t as any).userTags as string[]) {
           if (tag && typeof tag === 'string') set.add(tag);
         }
       }

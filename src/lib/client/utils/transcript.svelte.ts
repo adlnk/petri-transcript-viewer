@@ -136,8 +136,9 @@ export function createTranscriptLoader(filePath: string) {
       }
 
       // Node mode: use API endpoint
+      // Always use cache: 'no-store' - transcripts are editable so we need fresh data
       const url = `/api/transcripts?filePath=${encodeURIComponent(filePath)}&metadataOnly=true`;
-      const response = await fetch(url);
+      const response = await fetch(url, { cache: 'no-store' });
 
       if (!response.ok) {
         if (response.status === 404) {
@@ -200,9 +201,9 @@ export function createTranscriptLoader(filePath: string) {
       }
 
       // Node mode: use API endpoint
+      // Always use cache: 'no-store' - transcripts are editable so we need fresh data
       const url = `/api/transcripts?filePath=${encodeURIComponent(filePath)}`;
-      // Use cache: 'no-store' when force reloading to bypass browser HTTP cache
-      const response = await fetch(url, forceReload ? { cache: 'no-store' } : undefined);
+      const response = await fetch(url, { cache: 'no-store' });
 
       if (!response.ok) {
         if (response.status === 404) {

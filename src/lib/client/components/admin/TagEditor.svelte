@@ -13,18 +13,10 @@
 
 	let { filePath, tags, userTags, onSave, onCancel }: Props = $props();
 
-	// Local state for editing - initialize empty, effect will sync on mount
-	let editedUserTags = $state<string[]>([]);
+	// Local state for editing - initialize directly from props
+	// Parent uses {#key} block to force remount after save, so we get fresh props
+	let editedUserTags = $state<string[]>([...userTags]);
 	let inputValue = $state('');
-	let isSaving = $state(false);  // Track if save is in progress
-
-	// Sync local state with prop on mount and when prop changes (if not saving)
-	// Use $effect.pre to sync BEFORE render to avoid flash of empty state
-	$effect.pre(() => {
-		if (!isSaving) {
-			editedUserTags = [...userTags];
-		}
-	});
 	let availableTags = $state<string[]>([]);
 	let showDropdown = $state(false);
 	let saving = $state(false);
@@ -86,7 +78,6 @@
 
 	async function handleSave() {
 		saving = true;
-		isSaving = true;  // Prevent effect from reverting our changes during reload
 		error = null;
 
 		try {
@@ -104,22 +95,18 @@
 				throw new Error(data.message || 'Failed to save');
 			}
 
-			// Call onSave callback (which may trigger a reload)
+			// Call onSave callback - parent will close editor and use {#key} to force remount
 			await onSave(editedUserTags);
-
-			// After reload completes, effect can sync again
-			isSaving = false;
 		} catch (err: any) {
 			error = err.message || 'Failed to save tags';
-			isSaving = false;
-		} finally {
 			saving = false;
 		}
+		// Note: don't set saving=false in finally - component may unmount before this runs
 	}
 
-	// Check if there are changes
+	// Check if there are changes (use spread to avoid mutating arrays during comparison)
 	let hasChanges = $derived(
-		JSON.stringify(editedUserTags.sort()) !== JSON.stringify(userTags.sort())
+		JSON.stringify([...editedUserTags].sort()) !== JSON.stringify([...userTags].sort())
 	);
 </script>
 
