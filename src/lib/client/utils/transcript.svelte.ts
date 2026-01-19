@@ -226,9 +226,11 @@ export function createTranscriptLoader(filePath: string) {
       if (result.success) {
         transcript = result.data;
 
-        // If metadata wasn't loaded yet, extract it from the full transcript (when present)
-        if (!metadata && transcript && 'transcript' in transcript && transcript.transcript?.metadata) {
-          metadata = transcript.transcript.metadata;
+        // Extract display metadata from the TranscriptDisplayFull object
+        // (NOT from transcript.transcript.metadata which is raw snake_case)
+        if (transcript) {
+          const { transcript: _raw, ...displayMeta } = transcript;
+          metadata = displayMeta as TranscriptMetadata;
         }
 
         return transcript;

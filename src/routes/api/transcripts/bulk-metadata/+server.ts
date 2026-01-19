@@ -71,7 +71,13 @@ export const POST: RequestHandler = async ({ request }) => {
           continue;
         }
 
-        const resolvedPath = path.resolve(TRANSCRIPT_DIR, filePath);
+        // Handle both absolute and relative paths
+        let resolvedPath: string;
+        if (path.isAbsolute(filePath) && filePath.startsWith(TRANSCRIPT_DIR)) {
+          resolvedPath = filePath;
+        } else {
+          resolvedPath = path.resolve(TRANSCRIPT_DIR, filePath);
+        }
 
         // Read existing transcript
         let transcriptData: any;

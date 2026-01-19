@@ -7,6 +7,9 @@ const isStaticMode = import.meta.env.VITE_STATIC_MODE === 'true';
 let initializeGlobalCache: typeof import('$lib/server/cache/transcript-cache').initializeGlobalCache;
 let shutdownGlobalCache: typeof import('$lib/server/cache/transcript-cache').shutdownGlobalCache;
 let getTranscriptCache: typeof import('$lib/server/cache/transcript-cache').getTranscriptCache;
+let initializeMetadataIndex: typeof import('$lib/server/cache/metadata-index').initializeMetadataIndex;
+let shutdownMetadataIndex: typeof import('$lib/server/cache/metadata-index').shutdownMetadataIndex;
+let getMetadataIndex: typeof import('$lib/server/cache/metadata-index').getMetadataIndex;
 let TRANSCRIPT_DIR: string;
 
 // Initialize cache on server startup (node mode only)
@@ -22,15 +25,26 @@ async function initializeCache() {
     shutdownGlobalCache = cacheModule.shutdownGlobalCache;
     getTranscriptCache = cacheModule.getTranscriptCache;
 
+    const indexModule = await import('$lib/server/cache/metadata-index');
+    initializeMetadataIndex = indexModule.initializeMetadataIndex;
+    shutdownMetadataIndex = indexModule.shutdownMetadataIndex;
+    getMetadataIndex = indexModule.getMetadataIndex;
+
     const config = await import('$lib/server/config');
     TRANSCRIPT_DIR = config.TRANSCRIPT_DIR;
 
     console.log(`[SERVER] Initializing transcript cache for directory: ${TRANSCRIPT_DIR}`);
 
+    // Initialize transcript cache first (metadata index depends on its file watcher)
     await initializeGlobalCache(TRANSCRIPT_DIR);
+
+    // Initialize persistent metadata index (uses cache's file watcher for live updates)
+    console.log('[SERVER] Initializing persistent metadata index...');
+    await initializeMetadataIndex(TRANSCRIPT_DIR);
+
     cacheInitialized = true;
 
-    console.log('[SERVER] Transcript cache initialized successfully');
+    console.log('[SERVER] Transcript cache and metadata index initialized successfully');
   } catch (error) {
     console.error('[SERVER] Failed to initialize transcript cache:', error);
     // Don't throw - server should still work without cache

@@ -170,7 +170,10 @@
       this={cellElement}
       class="{baseClasses} justify-center"
       style="{cellStyle}"
-      onclick={(e: Event) => e.stopPropagation()}
+      onclick={(e: Event) => {
+        e.stopPropagation();
+        e.preventDefault();  // Prevent <a> tag navigation
+      }}
     >
       <ShareToggle {filePath} {shareOnline} compact={true} />
     </svelte:element>

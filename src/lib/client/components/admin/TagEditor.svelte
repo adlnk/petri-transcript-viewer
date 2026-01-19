@@ -7,15 +7,24 @@
 		filePath: string;
 		tags: string[];          // Original tags (read-only)
 		userTags: string[];      // User-added tags (editable)
-		onSave: (userTags: string[]) => void;
+		onSave: (userTags: string[]) => void | Promise<void>;
 		onCancel: () => void;
 	}
 
 	let { filePath, tags, userTags, onSave, onCancel }: Props = $props();
 
-	// Local state for editing
-	let editedUserTags = $state<string[]>([...userTags]);
+	// Local state for editing - initialize empty, effect will sync on mount
+	let editedUserTags = $state<string[]>([]);
 	let inputValue = $state('');
+	let isSaving = $state(false);  // Track if save is in progress
+
+	// Sync local state with prop on mount and when prop changes (if not saving)
+	// Use $effect.pre to sync BEFORE render to avoid flash of empty state
+	$effect.pre(() => {
+		if (!isSaving) {
+			editedUserTags = [...userTags];
+		}
+	});
 	let availableTags = $state<string[]>([]);
 	let showDropdown = $state(false);
 	let saving = $state(false);
@@ -77,6 +86,7 @@
 
 	async function handleSave() {
 		saving = true;
+		isSaving = true;  // Prevent effect from reverting our changes during reload
 		error = null;
 
 		try {
@@ -94,9 +104,14 @@
 				throw new Error(data.message || 'Failed to save');
 			}
 
-			onSave(editedUserTags);
+			// Call onSave callback (which may trigger a reload)
+			await onSave(editedUserTags);
+
+			// After reload completes, effect can sync again
+			isSaving = false;
 		} catch (err: any) {
 			error = err.message || 'Failed to save tags';
+			isSaving = false;
 		} finally {
 			saving = false;
 		}

@@ -27,9 +27,9 @@
 
 <span
 	class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium
-		{tagType === 'strategy' ? 'bg-primary/20 text-primary-content' : ''}
-		{tagType === 'target' ? 'bg-secondary/20 text-secondary-content' : ''}
-		{tagType === 'wave' ? 'bg-accent/20 text-accent-content' : ''}
+		{tagType === 'strategy' ? 'bg-primary/20 text-primary' : ''}
+		{tagType === 'target' ? 'bg-secondary/20 text-secondary' : ''}
+		{tagType === 'wave' ? 'bg-accent/20 text-accent' : ''}
 		{tagType === 'other' ? 'bg-base-300 text-base-content' : ''}
 		{isUserTag ? 'border border-dashed border-current/30' : ''}"
 	title={isUserTag ? 'User-added tag' : tag}

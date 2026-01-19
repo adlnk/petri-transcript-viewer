@@ -144,7 +144,7 @@
 
 	// Refresh data after bulk operations (admin mode)
 	function handleBulkUpdate() {
-		dataLoader.loadData('list', currentPath || undefined);
+		dataLoader.loadData('list', currentPath || undefined, true); // Force reload
 	}
 
 	// Folder expansion is now handled entirely by TranscriptTable

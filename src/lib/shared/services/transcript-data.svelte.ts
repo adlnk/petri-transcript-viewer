@@ -9,6 +9,26 @@ const isStaticMode = import.meta.env.VITE_STATIC_MODE === 'true';
 // Cache for static metadata index (lightweight, no full transcripts)
 let metadataIndexCache: { metadata: any[]; transcriptCount: number } | null = null;
 
+// Module-level cache for loaded transcript data (persists across navigation)
+let dataCache: {
+  path: string;
+  data: TranscriptDisplay[];
+  timestamp: number;
+} | null = null;
+
+// Cache TTL: 5 minutes (in node mode, data can change)
+const CACHE_TTL_MS = 5 * 60 * 1000;
+
+/**
+ * Invalidate the module-level data cache.
+ * Call this when metadata is updated elsewhere (e.g., from detail view)
+ * to ensure list view shows fresh data on next navigation.
+ */
+export function invalidateListDataCache() {
+  dataCache = null;
+  debugLog('🗑️ [CACHE] List data cache invalidated');
+}
+
 async function loadMetadataIndex() {
   if (metadataIndexCache) return metadataIndexCache;
 
@@ -40,8 +60,22 @@ export function createTranscriptDataLoader() {
   let transcripts = $derived(rawTranscripts); // Return raw transcripts for list view
   let folderTree = $derived(buildFolderTreeFromTranscripts(rawTranscripts));
 
-  async function loadData(viewMode: 'list' | 'tree', subdirectoryPath?: string) {
-    debugLog('🔄 [DEBUG] Starting unified loadData()...', { viewMode, subdirectoryPath });
+  async function loadData(viewMode: 'list' | 'tree', subdirectoryPath?: string, forceReload = false) {
+    const cachePath = subdirectoryPath || '';
+    const now = Date.now();
+
+    // Check cache first (unless force reload)
+    if (!forceReload && dataCache && dataCache.path === cachePath) {
+      const cacheAge = now - dataCache.timestamp;
+      if (cacheAge < CACHE_TTL_MS) {
+        debugLog('📦 [CACHE] Using cached data', { path: cachePath, ageMs: cacheAge });
+        rawTranscripts = dataCache.data;
+        loading = false;
+        return;
+      }
+    }
+
+    debugLog('🔄 [DEBUG] Starting unified loadData()...', { viewMode, subdirectoryPath, forceReload });
     loading = true;
     error = null;
     loadingErrors = [];
@@ -59,6 +93,13 @@ export function createTranscriptDataLoader() {
 
       // Always use bulk API to send all metadata at once
       await loadDataBulk(rootDirParam, includeErrors);
+
+      // Cache the result
+      dataCache = {
+        path: cachePath,
+        data: rawTranscripts,
+        timestamp: now
+      };
 
     } catch (err) {
       error = err instanceof Error ? err.message : 'Unknown error';
@@ -80,6 +121,11 @@ export function createTranscriptDataLoader() {
         derivedFolderTreeLength: folderTree.length
       });
     }
+  }
+
+  // Force invalidate cache and reload
+  function invalidateCache() {
+    dataCache = null;
   }
 
   async function loadDataBulk(rootDirParam: string, includeErrors: boolean) {
@@ -134,10 +180,11 @@ export function createTranscriptDataLoader() {
     get folderTree() { return folderTree; },
     get loading() { return loading; },
     get error() { return error; },
-    get loadingErrors() { 
-      return loadingErrors; 
+    get loadingErrors() {
+      return loadingErrors;
     },
     get loadingStats() { return loadingStats; },
-    loadData
+    loadData,
+    invalidateCache
   };
 }

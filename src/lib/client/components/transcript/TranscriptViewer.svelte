@@ -2,6 +2,7 @@
   import type { Message } from '$lib/shared/types';
   import type { ConversationColumn } from '$lib/shared/transcript-parser';
   import { createTranscriptLoader } from '$lib/client/utils/transcript.svelte';
+  import { invalidateListDataCache } from '$lib/shared/services/transcript-data.svelte';
   import { parseTranscriptEvents, extractAvailableViews } from '$lib/shared/transcript-parser';
   import { handleCopyAction, type CopyAction } from '$lib/client/utils/copy-utils';
   import MessageCard from './MessageCard.svelte';
@@ -135,10 +136,18 @@
 
   // Admin mode state
   let isEditingTags = $state(false);
+  let isReloading = $state(false);
 
   // Handler for tag/share updates - force reload transcript to show changes
-  function handleMetadataUpdate() {
-    loader.loadTranscript(true);
+  async function handleMetadataUpdate(): Promise<void> {
+    isReloading = true;
+    try {
+      // Invalidate list cache so list view shows updated data when navigating back
+      invalidateListDataCache();
+      await loader.loadTranscript(true);
+    } finally {
+      isReloading = false;
+    }
   }
 
   // Message state management
@@ -502,7 +511,7 @@
           <h3 class="text-lg font-semibold mb-2">Sharing</h3>
           <ShareToggle
             filePath={filePath}
-            shareOnline={loader.metadata?.shareOnline ?? false}
+            shareOnline={loader.transcript?.shareOnline ?? false}
             onToggle={handleMetadataUpdate}
           />
         </div>
@@ -529,23 +538,23 @@
           <!-- Tag Editor (admin mode) -->
           <TagEditor
             filePath={filePath}
-            tags={loader.metadata?.tags || []}
-            userTags={loader.metadata?.userTags || []}
-            onSave={() => {
+            tags={loader.transcript?.tags || []}
+            userTags={loader.transcript?.userTags || []}
+            onSave={async () => {
+              await handleMetadataUpdate();
               isEditingTags = false;
-              handleMetadataUpdate();
             }}
             onCancel={() => isEditingTags = false}
           />
         {:else}
           <!-- Display tags -->
-          {@const allTags = [...(loader.metadata?.tags || []), ...(loader.metadata?.userTags || [])]}
+          {@const allTags = [...(loader.transcript?.tags || []), ...(loader.transcript?.userTags || [])]}
           {#if allTags.length > 0}
             <div class="flex flex-wrap gap-2">
-              {#each loader.metadata?.tags || [] as tag}
+              {#each loader.transcript?.tags || [] as tag}
                 <TagChip {tag} />
               {/each}
-              {#each loader.metadata?.userTags || [] as tag}
+              {#each loader.transcript?.userTags || [] as tag}
                 <TagChip {tag} isUserTag={true} />
               {/each}
             </div>

@@ -58,7 +58,18 @@ export const POST: RequestHandler = async ({ request }) => {
       throw error(400, { message: `Invalid or unsafe file path: ${filePath}` });
     }
 
-    const resolvedPath = path.resolve(TRANSCRIPT_DIR, filePath);
+    // Handle both absolute and relative paths
+    // If filePath is already absolute and under TRANSCRIPT_DIR, use it directly
+    // Otherwise, resolve it relative to TRANSCRIPT_DIR
+    let resolvedPath: string;
+    if (path.isAbsolute(filePath) && filePath.startsWith(TRANSCRIPT_DIR)) {
+      resolvedPath = filePath;
+    } else {
+      resolvedPath = path.resolve(TRANSCRIPT_DIR, filePath);
+    }
+
+    console.log(`[METADATA API] Request: path=${filePath.split('/').slice(-2).join('/')} user_tags=${JSON.stringify(user_tags)} share_online=${share_online}`);
+    console.log(`[METADATA API] Resolved: ${resolvedPath}`);
 
     // Read existing transcript
     let transcriptData: any;
@@ -91,13 +102,17 @@ export const POST: RequestHandler = async ({ request }) => {
     // Write back to file (pretty-printed)
     try {
       await fs.writeFile(resolvedPath, JSON.stringify(transcriptData, null, 2), 'utf-8');
+      console.log('[METADATA API] ✅ Wrote to:', resolvedPath);
     } catch (err: any) {
+      console.error('[METADATA API] ❌ Write failed:', err.message);
       throw error(500, { message: `Failed to write transcript: ${err.message}` });
     }
 
     // Invalidate cache
     const cache = getTranscriptCache();
     cache.invalidateTranscript(resolvedPath);
+
+    console.log('[METADATA API] ✅ Complete. user_tags:', transcriptData.metadata.user_tags, 'share_online:', transcriptData.metadata.share_online);
 
     return json({
       success: true,

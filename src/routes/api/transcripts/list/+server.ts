@@ -6,15 +6,20 @@ import { TRANSCRIPT_LIST_METADATA } from '$lib/server/data/bundled-transcripts';
 const isStaticMode = import.meta.env.VITE_STATIC_MODE === 'true';
 
 // Dynamic imports for node mode (only loaded when needed)
-let loadCachedTranscriptsMetadataOnly: typeof import('$lib/server/data-loading/cached-bulk-loader').loadCachedTranscriptsMetadataOnly;
-let TRANSCRIPT_DIR: string;
+let getMetadataIndex: typeof import('$lib/server/cache/metadata-index').getMetadataIndex;
+let initializeMetadataIndex: typeof import('$lib/server/cache/metadata-index').initializeMetadataIndex;
+let indexInitialized = false;
 
-async function ensureNodeImports() {
-  if (!loadCachedTranscriptsMetadataOnly) {
-    const bulkLoader = await import('$lib/server/data-loading/cached-bulk-loader');
-    loadCachedTranscriptsMetadataOnly = bulkLoader.loadCachedTranscriptsMetadataOnly;
-    const config = await import('$lib/server/config');
-    TRANSCRIPT_DIR = config.TRANSCRIPT_DIR;
+async function ensureIndexReady() {
+  if (!getMetadataIndex) {
+    const indexModule = await import('$lib/server/cache/metadata-index');
+    getMetadataIndex = indexModule.getMetadataIndex;
+    initializeMetadataIndex = indexModule.initializeMetadataIndex;
+  }
+
+  if (!indexInitialized) {
+    await initializeMetadataIndex();
+    indexInitialized = true;
   }
 }
 
@@ -35,17 +40,17 @@ export const GET: RequestHandler = async ({ url }) => {
       return json(TRANSCRIPT_LIST_METADATA);
     }
 
-    // Node mode: use filesystem loading
-    await ensureNodeImports();
+    // Node mode: use persistent metadata index
+    await ensureIndexReady();
 
-    const { default: path } = await import('path');
+    const index = getMetadataIndex();
     const subdirectoryPath = url.searchParams.get('rootDir');
-    const rootDir = subdirectoryPath
-      ? path.resolve(TRANSCRIPT_DIR, subdirectoryPath)
-      : TRANSCRIPT_DIR;
 
-    const result = await loadCachedTranscriptsMetadataOnly(rootDir);
-    return json(result.transcripts);
+    if (subdirectoryPath) {
+      return json(index.getByDirectory(subdirectoryPath));
+    }
+
+    return json(index.getAll());
 
   } catch (err: any) {
     console.error('Metadata list API error:', err);
