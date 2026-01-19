@@ -2,7 +2,7 @@
 
 // Data loading
 export const DEFAULT_TRANSCRIPT_DIR = './transcripts';
-export const DEFAULT_CONCURRENCY = 10;
+export const DEFAULT_CONCURRENCY = 50; // Higher concurrency for faster bulk loading
 export const DEFAULT_PAGINATION_LIMIT = 50;
 
 // Caching
