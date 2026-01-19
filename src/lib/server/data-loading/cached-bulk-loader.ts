@@ -91,6 +91,8 @@ export async function loadCachedTranscriptsMetadataOnly(
               judgeSummary: undefined, // Remove heavy field - available in detail view
               justification: undefined, // Remove heavy field - available in detail view
               tags: metadata.tags || [],
+              userTags: metadata.user_tags || [],           // Admin mode: manually added tags
+              shareOnline: metadata.share_online ?? false,  // Admin mode: share online flag
               systemPrompt: undefined, // Cannot extract system prompt from metadata-only (no events)
               transcript: undefined as any, // Remove heavy field - available in detail view
               _filePath: relativePath // Store relative path

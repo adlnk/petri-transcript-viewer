@@ -97,6 +97,8 @@ export function buildFolderTreeFromTranscriptsAndDirectories(
         judgeSummary: transcript.judgeSummary,
         justification: transcript.justification,
         tags: transcript.tags,
+        userTags: transcript.userTags,       // Admin mode: manually added tags
+        shareOnline: transcript.shareOnline, // Admin mode: share online flag
         originalTranscript: transcript
       };
       
@@ -154,6 +156,8 @@ export function buildFolderTreeFromTranscriptsAndDirectories(
       judgeSummary: transcript.judgeSummary,
       justification: transcript.justification,
       tags: transcript.tags,
+      userTags: transcript.userTags,       // Admin mode: manually added tags
+      shareOnline: transcript.shareOnline, // Admin mode: share online flag
       originalTranscript: transcript
     };
     
