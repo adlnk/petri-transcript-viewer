@@ -11,32 +11,44 @@ let TRANSCRIPT_DIR: string;
 
 // Initialize cache on server startup (node mode only)
 let cacheInitialized = false;
+let cacheInitializing: Promise<void> | null = null;
 
 async function initializeCache() {
   if (cacheInitialized || isStaticMode) return;
 
-  try {
-    // Dynamic imports for node mode
-    const cacheModule = await import('$lib/server/cache/transcript-cache');
-    initializeGlobalCache = cacheModule.initializeGlobalCache;
-    shutdownGlobalCache = cacheModule.shutdownGlobalCache;
-    getTranscriptCache = cacheModule.getTranscriptCache;
-
-    const config = await import('$lib/server/config');
-    TRANSCRIPT_DIR = config.TRANSCRIPT_DIR;
-
-    console.log(`[SERVER] Initializing transcript cache for directory: ${TRANSCRIPT_DIR}`);
-
-    // Initialize transcript cache with file watcher
-    await initializeGlobalCache(TRANSCRIPT_DIR);
-
-    cacheInitialized = true;
-
-    console.log('[SERVER] Transcript cache initialized successfully');
-  } catch (error) {
-    console.error('[SERVER] Failed to initialize transcript cache:', error);
-    // Don't throw - server should still work without cache
+  // Prevent race condition: if already initializing, wait for that to complete
+  if (cacheInitializing) {
+    await cacheInitializing;
+    return;
   }
+
+  cacheInitializing = (async () => {
+    try {
+      // Dynamic imports for node mode
+      const cacheModule = await import('$lib/server/cache/transcript-cache');
+      initializeGlobalCache = cacheModule.initializeGlobalCache;
+      shutdownGlobalCache = cacheModule.shutdownGlobalCache;
+      getTranscriptCache = cacheModule.getTranscriptCache;
+
+      const config = await import('$lib/server/config');
+      TRANSCRIPT_DIR = config.TRANSCRIPT_DIR;
+
+      console.log(`[SERVER] Initializing transcript cache for directory: ${TRANSCRIPT_DIR}`);
+
+      // Initialize transcript cache with file watcher
+      await initializeGlobalCache(TRANSCRIPT_DIR);
+
+      cacheInitialized = true;
+
+      console.log('[SERVER] Transcript cache initialized successfully');
+    } catch (error) {
+      console.error('[SERVER] Failed to initialize transcript cache:', error);
+      // Don't throw - server should still work without cache
+    }
+  })();
+
+  await cacheInitializing;
+  cacheInitializing = null;
 }
 
 // Graceful shutdown handler (node mode only)
