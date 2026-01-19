@@ -296,22 +296,32 @@ export interface Transcript {
 }
 
 // Split display types for clarity and correctness
+// TranscriptDisplayMeta is used for list view - optimized for minimal payload
+// Heavy fields (scoreDescriptions, judgeSummary, justification, characterAnalysis)
+// are omitted in list responses and only available when viewing individual transcripts
 export interface TranscriptDisplayMeta {
   id: string;
   model: string;
   split: string;
   concerningScore: number;
-  summary: string;
+  summary: string;  // Truncated to 200 chars in list view
   scores: Record<string, number>;
-  scoreDescriptions?: Record<string, string>;
-  judgeSummary: string;
-  justification: string;
-  characterAnalysis?: string;
+  // NOTE: scoreDescriptions removed from list responses (loaded separately from dimension-descriptions.json)
+  scoreDescriptions?: Record<string, string>;  // Only populated in detail view
+  judgeSummary?: string;      // Removed from list responses for payload optimization
+  justification?: string;     // Removed from list responses for payload optimization
+  characterAnalysis?: string; // Removed from list responses for payload optimization
   tags?: string[];
   userTags?: string[];         // Manually added tags (admin mode)
   shareOnline?: boolean;       // true = include in online viewer
   systemPrompt?: string;
   _filePath?: string;
+}
+
+// Response format for list API (version 2 = lightweight, no scoreDescriptions)
+export interface TranscriptListResponse {
+  transcripts: TranscriptDisplayMeta[];
+  version: '2';
 }
 
 export interface TranscriptDisplayFull extends TranscriptDisplayMeta {

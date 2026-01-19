@@ -1,25 +1,18 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { TRANSCRIPT_LIST_METADATA } from '$lib/server/data/bundled-transcripts';
+import { TRANSCRIPT_DIR } from '$lib/server/config';
 
 // Check if we're in static mode using build-time env var
 const isStaticMode = import.meta.env.VITE_STATIC_MODE === 'true';
 
 // Dynamic imports for node mode (only loaded when needed)
-let getMetadataIndex: typeof import('$lib/server/cache/metadata-index').getMetadataIndex;
-let initializeMetadataIndex: typeof import('$lib/server/cache/metadata-index').initializeMetadataIndex;
-let indexInitialized = false;
+let loadCachedTranscriptsMetadataOnly: typeof import('$lib/server/data-loading/cached-bulk-loader').loadCachedTranscriptsMetadataOnly;
 
-async function ensureIndexReady() {
-  if (!getMetadataIndex) {
-    const indexModule = await import('$lib/server/cache/metadata-index');
-    getMetadataIndex = indexModule.getMetadataIndex;
-    initializeMetadataIndex = indexModule.initializeMetadataIndex;
-  }
-
-  if (!indexInitialized) {
-    await initializeMetadataIndex();
-    indexInitialized = true;
+async function ensureLoaderReady() {
+  if (!loadCachedTranscriptsMetadataOnly) {
+    const loaderModule = await import('$lib/server/data-loading/cached-bulk-loader');
+    loadCachedTranscriptsMetadataOnly = loaderModule.loadCachedTranscriptsMetadataOnly;
   }
 }
 
@@ -32,7 +25,7 @@ export const GET: RequestHandler = async ({ url }) => {
       // Filter by subdirectory if specified
       if (subdirectoryPath) {
         const filtered = TRANSCRIPT_LIST_METADATA.filter(t =>
-          t._filePath.startsWith(subdirectoryPath + '/') || t._filePath.startsWith(subdirectoryPath)
+          t._filePath?.startsWith(subdirectoryPath + '/') || t._filePath?.startsWith(subdirectoryPath)
         );
         return json(filtered);
       }
@@ -40,17 +33,16 @@ export const GET: RequestHandler = async ({ url }) => {
       return json(TRANSCRIPT_LIST_METADATA);
     }
 
-    // Node mode: use persistent metadata index
-    await ensureIndexReady();
+    // Node mode: load metadata using cached bulk loader
+    await ensureLoaderReady();
 
-    const index = getMetadataIndex();
     const subdirectoryPath = url.searchParams.get('rootDir');
+    const loadDir = subdirectoryPath
+      ? `${TRANSCRIPT_DIR}/${subdirectoryPath}`
+      : TRANSCRIPT_DIR;
 
-    if (subdirectoryPath) {
-      return json(index.getByDirectory(subdirectoryPath));
-    }
-
-    return json(index.getAll());
+    const result = await loadCachedTranscriptsMetadataOnly(loadDir, false);
+    return json(result.transcripts);
 
   } catch (err: any) {
     console.error('Metadata list API error:', err);

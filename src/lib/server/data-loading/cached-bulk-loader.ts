@@ -78,6 +78,7 @@ export async function loadCachedTranscriptsMetadataOnly(
             const transcriptNumber = fileName.endsWith('.json') ? fileName.slice(0, -5) : fileName;
             
             // Create optimized transcript object for homepage (remove heavy fields)
+            // scoreDescriptions are NOT included here - loaded separately via /api/transcripts/descriptions
             const summary = metadata.judge_output?.summary || metadata.description || 'No summary available';
             const transcript: TranscriptDisplay = {
               id: metadata.transcript_id || transcriptNumber,
@@ -86,12 +87,12 @@ export async function loadCachedTranscriptsMetadataOnly(
               concerningScore: metadata.judge_output?.scores?.concerning || 0,
               summary: summary.length > 200 ? summary.substring(0, 200) + '...' : summary, // Truncate long summaries
               scores: metadata.judge_output?.scores || {},
-              scoreDescriptions: metadata.judge_output?.score_descriptions,
-              judgeSummary: '', // Remove heavy field - not needed for homepage
-              justification: '', // Remove heavy field - not needed for homepage
+              // scoreDescriptions: REMOVED - sent via separate /api/transcripts/descriptions endpoint
+              judgeSummary: undefined, // Remove heavy field - available in detail view
+              justification: undefined, // Remove heavy field - available in detail view
               tags: metadata.tags || [],
               systemPrompt: undefined, // Cannot extract system prompt from metadata-only (no events)
-              transcript: undefined as any, // Remove heavy field - not needed for homepage
+              transcript: undefined as any, // Remove heavy field - available in detail view
               _filePath: relativePath // Store relative path
             };
             
@@ -258,5 +259,62 @@ function chunkArray<T>(array: T[], chunkSize: number): T[][] {
     chunks.push(array.slice(i, i + chunkSize));
   }
   return chunks;
+}
+
+// Cache for collected dimension descriptions (loaded once per process)
+let cachedDimensionDescriptions: Record<string, string> | null = null;
+
+/**
+ * Collect all unique dimension descriptions from all transcripts.
+ * Results are cached for the lifetime of the server process.
+ * Used by /api/transcripts/descriptions endpoint.
+ */
+export async function collectDimensionDescriptions(
+  outputDir: string = './transcripts'
+): Promise<Record<string, string>> {
+  // Return cached if available
+  if (cachedDimensionDescriptions) {
+    return cachedDimensionDescriptions;
+  }
+
+  console.log('📝 [CACHED-LOADER] Collecting dimension descriptions from all transcripts...');
+
+  const directoryExists = await checkPathAccess(outputDir);
+  if (!directoryExists) {
+    console.warn(`Directory not found for descriptions: ${outputDir}`);
+    return {};
+  }
+
+  const scanResult = await scanDirectoryForTranscripts(outputDir);
+  const cache = getTranscriptCache();
+  const allDescriptions: Record<string, string> = {};
+
+  // Process files in batches
+  const concurrency = DEFAULT_CONCURRENCY;
+  const chunks = chunkArray(scanResult.files, concurrency);
+
+  for (const chunk of chunks) {
+    const results = await Promise.allSettled(
+      chunk.map(async (relativePath) => {
+        const absolutePath = path.resolve(outputDir, relativePath);
+        const metadata = await cache.getMetadata(absolutePath);
+        return metadata?.judge_output?.score_descriptions || null;
+      })
+    );
+
+    for (const result of results) {
+      if (result.status === 'fulfilled' && result.value) {
+        for (const [name, description] of Object.entries(result.value)) {
+          if (!allDescriptions[name] && description) {
+            allDescriptions[name] = description;
+          }
+        }
+      }
+    }
+  }
+
+  console.log(`📝 [CACHED-LOADER] Collected ${Object.keys(allDescriptions).length} unique dimension descriptions`);
+  cachedDimensionDescriptions = allDescriptions;
+  return allDescriptions;
 }
 

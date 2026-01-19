@@ -9,6 +9,57 @@ const isStaticMode = import.meta.env.VITE_STATIC_MODE === 'true';
 // Cache for static metadata index (lightweight, no full transcripts)
 let metadataIndexCache: { metadata: any[]; transcriptCount: number } | null = null;
 
+// Cache for dimension descriptions (loaded once, never expires)
+// In static mode: loaded from /data/dimension-descriptions.json
+// In node mode: loaded from /api/transcripts/descriptions
+let dimensionDescriptionsCache: Record<string, string> | null = null;
+let dimensionDescriptionsLoading: Promise<Record<string, string>> | null = null;
+
+/**
+ * Load dimension descriptions from static file or API.
+ * Uses singleton pattern - only loads once per session.
+ */
+async function loadDimensionDescriptions(): Promise<Record<string, string>> {
+  // Return cached if available
+  if (dimensionDescriptionsCache) {
+    return dimensionDescriptionsCache;
+  }
+
+  // If already loading, wait for that promise
+  if (dimensionDescriptionsLoading) {
+    return dimensionDescriptionsLoading;
+  }
+
+  // Start loading
+  dimensionDescriptionsLoading = (async () => {
+    try {
+      const url = isStaticMode
+        ? `${base}/data/dimension-descriptions.json`
+        : '/api/transcripts/descriptions';
+
+      debugLog('📝 [DESCRIPTIONS] Loading dimension descriptions from:', url);
+      const response = await fetch(url);
+
+      if (!response.ok) {
+        console.warn(`Failed to load dimension descriptions: ${response.status}`);
+        return {};
+      }
+
+      const descriptions = await response.json();
+      debugLog('📝 [DESCRIPTIONS] Loaded', Object.keys(descriptions).length, 'dimension descriptions');
+      dimensionDescriptionsCache = descriptions;
+      return descriptions;
+    } catch (err) {
+      console.warn('Failed to load dimension descriptions:', err);
+      return {};
+    } finally {
+      dimensionDescriptionsLoading = null;
+    }
+  })();
+
+  return dimensionDescriptionsLoading;
+}
+
 // Module-level cache for loaded transcript data (persists across navigation)
 let dataCache: {
   path: string;
@@ -54,11 +105,18 @@ export function createTranscriptDataLoader() {
   let error = $state<string | null>(null);
   let loadingErrors = $state<any[]>([]);
   let loadingStats = $state<any>(null);
-  
-  
+
+  // Score descriptions loaded from separate file (not from transcript data)
+  let scoreDescriptions = $state<Record<string, string>>({});
+
   // Derived views built from the raw data (cached automatically by Svelte)
   let transcripts = $derived(rawTranscripts); // Return raw transcripts for list view
   let folderTree = $derived(buildFolderTreeFromTranscripts(rawTranscripts));
+
+  // Load dimension descriptions on startup (fire-and-forget, cached globally)
+  loadDimensionDescriptions().then(descriptions => {
+    scoreDescriptions = descriptions;
+  });
 
   async function loadData(viewMode: 'list' | 'tree', subdirectoryPath?: string, forceReload = false) {
     const cachePath = subdirectoryPath || '';
@@ -133,7 +191,7 @@ export function createTranscriptDataLoader() {
     if (isStaticMode) {
       debugLog('[DEBUG] Loading from metadata index');
       const indexData = await loadMetadataIndex();
-      let transcriptList = indexData.metadata || [];
+      let transcriptList = indexData?.metadata || [];
 
       // Filter by subdirectory if specified
       if (rootDirParam) {
@@ -184,6 +242,8 @@ export function createTranscriptDataLoader() {
       return loadingErrors;
     },
     get loadingStats() { return loadingStats; },
+    // Score descriptions loaded from separate file (not from individual transcripts)
+    get scoreDescriptions() { return scoreDescriptions; },
     loadData,
     invalidateCache
   };

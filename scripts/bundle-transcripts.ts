@@ -42,17 +42,18 @@ interface Transcript {
   }>;
 }
 
+// Lightweight metadata for list view (heavy fields removed for payload optimization)
 interface TranscriptDisplayMeta {
   id: string;
   model: string;
   split: string;
   concerningScore: number;
-  summary: string;
+  summary: string;  // Truncated to 200 chars
   scores: Record<string, number>;
-  scoreDescriptions?: Record<string, string>;
-  judgeSummary: string;
-  justification: string;
-  characterAnalysis?: string;
+  // scoreDescriptions - REMOVED: sent separately in dimension-descriptions.json
+  // judgeSummary - REMOVED: not needed for list view
+  // justification - REMOVED: not needed for list view
+  // characterAnalysis - REMOVED: not needed for list view
   tags: string[];
   userTags?: string[];
   shareOnline?: boolean;
@@ -132,6 +133,12 @@ function createTranscriptDisplay(transcript: Transcript, filePath: string): Tran
   };
 }
 
+// Truncate string to max length with ellipsis
+function truncateString(str: string, maxLength: number): string {
+  if (str.length <= maxLength) return str;
+  return str.substring(0, maxLength) + '...';
+}
+
 function extractTranscriptMetadata(transcript: Transcript, filePath: string): TranscriptDisplayMeta {
   const targetModel = extractTargetModel(transcript);
   const pathParts = filePath.split('/');
@@ -139,17 +146,20 @@ function extractTranscriptMetadata(transcript: Transcript, filePath: string): Tr
   const fileName = pathParts[pathParts.length - 1];
   const transcriptNumber = fileName.endsWith('.json') ? fileName.slice(0, -5) : fileName;
 
+  const fullSummary = transcript.metadata.judge_output?.summary || transcript.metadata.description || 'No summary available';
+
+  // Return lightweight metadata - heavy fields removed for list view optimization
   return {
     id: transcript.metadata.transcript_id || transcriptNumber,
     model: extractModelName(targetModel),
     split: behaviorDir,
     concerningScore: transcript.metadata.judge_output?.scores?.concerning || 0,
-    summary: transcript.metadata.judge_output?.summary || transcript.metadata.description || 'No summary available',
+    summary: truncateString(fullSummary, 200),  // Truncated for list view
     scores: transcript.metadata.judge_output?.scores || {},
-    scoreDescriptions: transcript.metadata.judge_output?.score_descriptions,
-    judgeSummary: transcript.metadata.judge_output?.summary || 'No judgment summary available',
-    justification: transcript.metadata.judge_output?.justification || 'No justification available',
-    characterAnalysis: transcript.metadata.judge_output?.character_analysis,
+    // scoreDescriptions: REMOVED - sent separately in dimension-descriptions.json
+    // judgeSummary: REMOVED - full data available when viewing individual transcript
+    // justification: REMOVED - full data available when viewing individual transcript
+    // characterAnalysis: REMOVED - full data available when viewing individual transcript
     tags: transcript.metadata.tags || [],
     userTags: transcript.metadata.user_tags || [],
     shareOnline: transcript.metadata.share_online,
@@ -225,6 +235,7 @@ async function main() {
 
   const fullTranscripts: Record<string, TranscriptDisplayFull> = {};
   const metadataList: TranscriptDisplayMeta[] = [];
+  const allDescriptions: Record<string, string> = {};  // Deduplicated descriptions from all transcripts
   const errors: string[] = [];
 
   for (const relativePath of jsonFiles) {
@@ -245,6 +256,16 @@ async function main() {
 
       fullTranscripts[relativePath] = displayFull;
       metadataList.push(displayMeta);
+
+      // Collect score descriptions (deduplicated - first occurrence wins)
+      const scoreDescriptions = transcript.metadata.judge_output?.score_descriptions;
+      if (scoreDescriptions) {
+        for (const [name, description] of Object.entries(scoreDescriptions)) {
+          if (!allDescriptions[name] && description) {
+            allDescriptions[name] = description;
+          }
+        }
+      }
 
     } catch (err: any) {
       errors.push(`${relativePath}: ${err.message}`);
@@ -304,6 +325,12 @@ export const BUNDLE_TRANSCRIPT_COUNT = ${metadataList.length};
   const metadataIndexPath = path.join(staticDir, 'metadata-index.json');
   fs.writeFileSync(metadataIndexPath, JSON.stringify(metadataIndex));
   console.log(`Generated metadata index: ${metadataIndexPath}`);
+
+  // Write deduplicated dimension descriptions to separate file
+  // This reduces payload: ~60 descriptions × 1500 transcripts → single ~6KB file
+  const descriptionsPath = path.join(staticDir, 'dimension-descriptions.json');
+  fs.writeFileSync(descriptionsPath, JSON.stringify(allDescriptions));
+  console.log(`Generated dimension descriptions: ${descriptionsPath} (${Object.keys(allDescriptions).length} dimensions)`);
 
   // Copy individual transcript files to static/transcripts/ for lazy loading
   const transcriptsDir = path.join(__dirname, '../static/transcripts');

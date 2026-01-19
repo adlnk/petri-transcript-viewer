@@ -12,7 +12,6 @@
 	import { createFilterFunction } from '$lib/shared/filter-utils';
 	import { createTranscriptDataLoader } from '$lib/shared/services/transcript-data.svelte';
 	import { extractAllTranscriptsFromTree, filterFolderTree } from '$lib/client/utils/folder-tree';
-	import { collectScoreDescriptions } from '$lib/shared/utils/transcript-utils';
 	import { debugLog } from '$lib/client/utils/debug';
 
 	// Create data loader
@@ -98,13 +97,9 @@
 		return Array.from(tagSet).sort((a, b) => a.localeCompare(b));
 	});
 	
-	// Collect score descriptions from all transcripts for tooltips
-	let scoreDescriptions = $derived.by(() => {
-		debugLog('📝 [DEBUG] Collecting score descriptions from', allTranscripts.length, 'transcripts...');
-		const result = collectScoreDescriptions(allTranscripts);
-		debugLog('📝 [DEBUG] scoreDescriptions collected:', Object.keys(result));
-		return result;
-	});
+	// Score descriptions loaded separately from dimension-descriptions.json (not from individual transcripts)
+	// This optimization reduces payload size by ~96% for large transcript sets
+	let scoreDescriptions = $derived(dataLoader.scoreDescriptions);
 
 	// Create filter function from expression
 	let filterFunction = $derived.by(() => {
