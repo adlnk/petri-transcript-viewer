@@ -201,7 +201,8 @@ export function createTranscriptLoader(filePath: string) {
 
       // Node mode: use API endpoint
       const url = `/api/transcripts?filePath=${encodeURIComponent(filePath)}`;
-      const response = await fetch(url);
+      // Use cache: 'no-store' when force reloading to bypass browser HTTP cache
+      const response = await fetch(url, forceReload ? { cache: 'no-store' } : undefined);
 
       if (!response.ok) {
         if (response.status === 404) {

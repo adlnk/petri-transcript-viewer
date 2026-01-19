@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { tick } from 'svelte';
 	import { invalidateListDataCache } from '$lib/shared/services/transcript-data.svelte';
 
 	interface Props {
@@ -26,7 +25,6 @@
 		e?.preventDefault();
 
 		const newValue = !localValue;
-		console.log('[ShareToggle] Toggle clicked:', { currentValue: localValue, newValue, filePath });
 		saving = true;
 		pendingValue = newValue;  // Show optimistic update immediately
 
@@ -45,21 +43,17 @@
 				throw new Error(data.message || 'Failed to update');
 			}
 
-			console.log('[ShareToggle] API success');
-
-			// Call onToggle and wait for reload to complete (if handler provided)
+			// Keep pendingValue set to maintain correct visual state for this component instance
+			// When the user navigates away and back, the component recreates with fresh props
 			if (onToggle) {
+				// Call onToggle to refresh parent data (for other parts of the detail view)
 				await onToggle(newValue);
-				// Wait for Svelte to propagate prop updates from parent re-render
-				await tick();
-				// Now prop should match our pending value, so clear it
-				console.log('[ShareToggle] Reload complete, clearing pending value');
-				pendingValue = null;
 			} else {
 				// No onToggle (table view) - invalidate list cache so it refreshes on next load
-				// Keep pendingValue to maintain correct display for this component instance
 				invalidateListDataCache();
 			}
+			// Note: We intentionally don't clear pendingValue here - it maintains the correct
+			// visual state without needing to wait for prop propagation timing
 		} catch (err) {
 			console.error('[ShareToggle] Failed to toggle share status:', err);
 			// Revert on error - clear pending to show prop value
