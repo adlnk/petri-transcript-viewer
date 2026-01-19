@@ -90,6 +90,8 @@ export async function loadCachedTranscriptsMetadataOnly(
               judgeSummary: '', // Remove heavy field - not needed for homepage
               justification: '', // Remove heavy field - not needed for homepage
               tags: metadata.tags || [],
+              userTags: metadata.user_tags || [],           // Admin mode: manually added tags
+              shareOnline: metadata.share_online ?? false,  // Admin mode: share online flag
               systemPrompt: undefined, // Cannot extract system prompt from metadata-only (no events)
               transcript: undefined as any, // Remove heavy field - not needed for homepage
               _filePath: relativePath // Store relative path
