@@ -150,13 +150,13 @@
       this={cellElement}
       class="{baseClasses} justify-center"
       style="{cellStyle}"
+      onclick={(e: Event) => e.preventDefault()}
     >
       <input
         type="checkbox"
         class="checkbox checkbox-sm"
-        checked={selection.isSelected(filePath)}
+        checked={selection.paths.has(filePath)}
         onclick={(e: Event) => {
-          e.preventDefault();
           e.stopPropagation();
           selection.toggle(filePath);
         }}

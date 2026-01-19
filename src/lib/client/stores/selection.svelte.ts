@@ -5,6 +5,9 @@
 // Set of selected transcript file paths
 let selectedPaths = $state<Set<string>>(new Set());
 
+// Version counter that increments on every change - used to trigger reactivity in consumers
+let version = $state(0);
+
 /**
  * Toggle selection for a single transcript
  */
@@ -16,6 +19,7 @@ export function toggleSelection(filePath: string): void {
     newSet.add(filePath);
   }
   selectedPaths = newSet;
+  version++;
 }
 
 /**
@@ -25,6 +29,7 @@ export function selectMultiple(filePaths: string[]): void {
   const newSet = new Set(selectedPaths);
   filePaths.forEach(path => newSet.add(path));
   selectedPaths = newSet;
+  version++;
 }
 
 /**
@@ -34,6 +39,7 @@ export function deselectMultiple(filePaths: string[]): void {
   const newSet = new Set(selectedPaths);
   filePaths.forEach(path => newSet.delete(path));
   selectedPaths = newSet;
+  version++;
 }
 
 /**
@@ -41,6 +47,7 @@ export function deselectMultiple(filePaths: string[]): void {
  */
 export function selectAll(filePaths: string[]): void {
   selectedPaths = new Set(filePaths);
+  version++;
 }
 
 /**
@@ -48,6 +55,7 @@ export function selectAll(filePaths: string[]): void {
  */
 export function clearSelection(): void {
   selectedPaths = new Set();
+  version++;
 }
 
 /**
@@ -64,6 +72,7 @@ export const selection = {
   get paths() { return selectedPaths; },
   get count() { return selectedPaths.size; },
   get isEmpty() { return selectedPaths.size === 0; },
+  get version() { return version; },  // For triggering reactivity in consumers
   isSelected,
   toggle: toggleSelection,
   selectAll,
