@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { page } from '$app/stores';
 	import { base } from '$app/paths';
+	import { goto } from '$app/navigation';
 	import TranscriptTable from '$lib/client/components/TranscriptTable.svelte';
 	import FilterControls from '$lib/client/components/common/FilterControls.svelte';
 	import ViewModeToggle from '$lib/client/components/common/ViewModeToggle.svelte';
@@ -134,7 +135,8 @@
 		const filePath = transcript._filePath || '';
 		const withPrefix = currentPath ? `${currentPath}/${filePath}` : filePath;
 		const encodedPath = withPrefix.split('/').map((segment: string) => encodeURIComponent(segment)).join('/');
-		window.location.href = `${base}/transcript/${encodedPath}`;
+		// Use goto for client-side navigation (preserves module state including dataCache)
+		goto(`${base}/transcript/${encodedPath}`);
 	}
 
 	// Refresh data after bulk operations (admin mode)
