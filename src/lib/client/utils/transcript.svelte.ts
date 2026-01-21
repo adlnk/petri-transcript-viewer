@@ -43,6 +43,7 @@ function createTranscriptDisplayFromRaw(transcript: any, filePath: string): Tran
 
   return {
     id: transcript.metadata?.transcript_id || transcriptNumber,
+    wordId: transcript.metadata?.word_id,
     model: extractModelName(targetModel),
     split: behaviorDir,
     concerningScore: transcript.metadata?.judge_output?.scores?.concerning || 0,

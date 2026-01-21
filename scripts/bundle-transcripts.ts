@@ -17,6 +17,7 @@ const __dirname = path.dirname(__filename);
 interface Transcript {
   metadata: {
     transcript_id?: string;
+    word_id?: string;  // Human-readable word ID
     target_model?: string;
     description?: string;
     tags?: string[];
@@ -45,6 +46,7 @@ interface Transcript {
 // Lightweight metadata for list view (heavy fields removed for payload optimization)
 interface TranscriptDisplayMeta {
   id: string;
+  wordId?: string;  // Human-readable word ID
   model: string;
   split: string;
   concerningScore: number;
@@ -115,6 +117,7 @@ function createTranscriptDisplay(transcript: Transcript, filePath: string): Tran
 
   return {
     id: transcript.metadata.transcript_id || transcriptNumber,
+    wordId: transcript.metadata.word_id,
     model: extractModelName(targetModel),
     split: behaviorDir,
     concerningScore: transcript.metadata.judge_output?.scores?.concerning || 0,
@@ -151,6 +154,7 @@ function extractTranscriptMetadata(transcript: Transcript, filePath: string): Tr
   // Return lightweight metadata - heavy fields removed for list view optimization
   return {
     id: transcript.metadata.transcript_id || transcriptNumber,
+    wordId: transcript.metadata.word_id,
     model: extractModelName(targetModel),
     split: behaviorDir,
     concerningScore: transcript.metadata.judge_output?.scores?.concerning || 0,

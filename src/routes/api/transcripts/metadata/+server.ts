@@ -27,6 +27,7 @@ async function ensureNodeImports() {
 interface MetadataUpdateRequest {
   filePath: string;
   user_tags?: string[];
+  user_notes?: string;
   share_online?: boolean;
 }
 
@@ -47,7 +48,7 @@ export const POST: RequestHandler = async ({ request }) => {
     await ensureNodeImports();
 
     const body: MetadataUpdateRequest = await request.json();
-    const { filePath, user_tags, share_online } = body;
+    const { filePath, user_tags, user_notes, share_online } = body;
 
     if (!filePath) {
       throw error(400, { message: 'Missing required parameter: filePath' });
@@ -68,7 +69,7 @@ export const POST: RequestHandler = async ({ request }) => {
       resolvedPath = path.resolve(TRANSCRIPT_DIR, filePath);
     }
 
-    console.log(`[METADATA API] Request: path=${filePath.split('/').slice(-2).join('/')} user_tags=${JSON.stringify(user_tags)} share_online=${share_online}`);
+    console.log(`[METADATA API] Request: path=${filePath.split('/').slice(-2).join('/')} user_tags=${JSON.stringify(user_tags)} user_notes=${user_notes !== undefined ? `"${user_notes?.slice(0, 50)}..."` : 'undefined'} share_online=${share_online}`);
     console.log(`[METADATA API] Resolved: ${resolvedPath}`);
 
     // Read existing transcript
@@ -92,6 +93,14 @@ export const POST: RequestHandler = async ({ request }) => {
     if (user_tags !== undefined) {
       transcriptData.metadata.user_tags = user_tags;
     }
+    if (user_notes !== undefined) {
+      // Empty string removes the field, non-empty sets it
+      if (user_notes === '') {
+        delete transcriptData.metadata.user_notes;
+      } else {
+        transcriptData.metadata.user_notes = user_notes;
+      }
+    }
     if (share_online !== undefined) {
       transcriptData.metadata.share_online = share_online;
     }
@@ -112,7 +121,7 @@ export const POST: RequestHandler = async ({ request }) => {
     const cache = getTranscriptCache();
     cache.invalidateTranscript(resolvedPath);
 
-    console.log('[METADATA API] ✅ Complete. user_tags:', transcriptData.metadata.user_tags, 'share_online:', transcriptData.metadata.share_online);
+    console.log('[METADATA API] ✅ Complete. user_tags:', transcriptData.metadata.user_tags, 'user_notes:', transcriptData.metadata.user_notes ? 'present' : 'absent', 'share_online:', transcriptData.metadata.share_online);
 
     return json({
       success: true,

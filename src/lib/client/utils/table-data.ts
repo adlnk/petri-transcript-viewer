@@ -9,6 +9,7 @@ export function transcriptToTableRow(transcript: TranscriptDisplay): TableRow {
     name: transcript.summary.substring(0, 50) + (transcript.summary.length > 50 ? '...' : ''),
     path: transcript.id, // Use ID as path for transcripts
     type: 'transcript', // Use consistent 'transcript' type
+    wordId: transcript.wordId,
     model: transcript.model,
     split: transcript.split,
     summary: transcript.summary,

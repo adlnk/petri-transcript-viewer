@@ -17,46 +17,51 @@ function calculateIdColumnWidth(data: TableRow[]): number {
   let maxWidth = 100; // Minimum width
   const baseIndentation = 12; // Base padding
   const depthIndentation = 20; // Per-depth indentation
-  const charWidth = 8; // Approximate character width in pixels for font-mono
+  const charWidth = 7; // Approximate character width in pixels for font-mono
   const padding = 24; // Left + right padding (12px each)
-  
+
   function measureContent(rows: TableRow[], depth: number = 0): void {
     for (const row of rows) {
       let contentLength = 0;
-      
+
       if (row.type === 'folder') {
         // For folders, use the folder name
         contentLength = (row.name || 'Folder').length;
       } else {
-        // For transcripts, use the formatted ID (#123)
-        const idPart = row.id ? String(row.id).split('_').pop() : '';
-        contentLength = idPart ? `#${idPart}`.length : 0;
+        // Prefer word_id if available (e.g., 'fantastic-acoustic-whale' ~25 chars)
+        if (row.wordId) {
+          contentLength = row.wordId.length;
+        } else {
+          // Fallback to hex ID suffix (#123)
+          const idPart = row.id ? String(row.id).split('_').pop() : '';
+          contentLength = idPart ? `#${idPart}`.length : 0;
+        }
       }
-      
+
       // Calculate total width needed: content + indentation + padding
       const indentationWidth = baseIndentation + (depth * depthIndentation);
       const totalWidth = (contentLength * charWidth) + indentationWidth + padding;
-      
+
       maxWidth = Math.max(maxWidth, totalWidth);
-      
+
       // Recursively check subRows
       if (row.subRows && row.subRows.length > 0) {
         measureContent(row.subRows, depth + 1);
       }
     }
   }
-  
+
   measureContent(data);
-  
-  // Cap the maximum width to prevent extremely wide columns
-  const finalWidth = Math.min(maxWidth, 400);
-  
+
+  // Cap the maximum width to accommodate word IDs (~25 chars)
+  const finalWidth = Math.min(maxWidth, 280);
+
   debugLog('📏 [DEBUG] ID column width calculation:', {
     calculatedWidth: maxWidth,
     finalWidth,
     dataLength: data.length
   });
-  
+
   return finalWidth;
 }
 
@@ -106,11 +111,18 @@ export function createColumns(scoreTypes: string[], data: TableRow[] = [], score
       cell: ({ row, getValue }) => {
         const value = getValue();
         const isFolder = row.original.type === 'folder';
-        
+
         if (isFolder) {
           return row.original.name || 'Folder';
         }
-        
+
+        // Prefer word_id if available (e.g., 'fantastic-acoustic-whale')
+        const wordId = row.original.wordId;
+        if (wordId) {
+          return wordId;
+        }
+
+        // Fallback to hex suffix
         return value ? `#${String(value).split('_').pop()}` : '';
       },
       enableSorting: true,

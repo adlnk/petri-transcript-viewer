@@ -82,6 +82,7 @@ export async function loadCachedTranscriptsMetadataOnly(
             const summary = metadata.judge_output?.summary || metadata.description || 'No summary available';
             const transcript: TranscriptDisplay = {
               id: metadata.transcript_id || transcriptNumber,
+              wordId: metadata.word_id,  // Human-readable word ID
               model: extractModelName(metadata.target_model || ''),
               split: behaviorDir,
               concerningScore: metadata.judge_output?.scores?.concerning || 0,

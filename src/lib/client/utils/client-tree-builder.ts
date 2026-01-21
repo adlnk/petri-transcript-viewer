@@ -73,6 +73,7 @@ export function buildFolderTreeFromTranscripts(
       path: directoryPath ? `${directoryPath}/${transcript.id}` : transcript.id,
       type: 'transcript' as const,
       // Include all transcript data directly in the unified format
+      wordId: transcript.wordId,
       model: transcript.model,
       split: transcript.split,
       summary: transcript.summary,

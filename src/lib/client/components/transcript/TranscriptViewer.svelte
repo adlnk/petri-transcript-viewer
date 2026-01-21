@@ -12,6 +12,7 @@
   import { adminMode } from '$lib/client/stores/admin.svelte';
   import TagEditor from '$lib/client/components/admin/TagEditor.svelte';
   import TagChip from '$lib/client/components/admin/TagChip.svelte';
+  import NotesEditor from '$lib/client/components/admin/NotesEditor.svelte';
   import ShareToggle from '$lib/client/components/admin/ShareToggle.svelte';
 
   // Markdown renderer for Character Analysis
@@ -136,6 +137,7 @@
 
   // Admin mode state
   let isEditingTags = $state(false);
+  let isEditingNotes = $state(false);
   let isReloading = $state(false);
 
   // Handler for tag/share updates - force reload transcript to show changes
@@ -479,7 +481,9 @@
           <h1 class="text-2xl font-bold mb-2">
             {loader.transcript?.split} - {loader.transcript?.model}
           </h1>
-          <p class="text-base-content/70">Transcript #{loader.transcript?.id}</p>
+          <p class="text-base-content/70">
+            Transcript #{loader.transcript?.id}{#if loader.transcript?.wordId}&nbsp;<span class="font-medium">"{loader.transcript.wordId}"</span>{/if}
+          </p>
         </div>
       </div>
 
@@ -565,6 +569,48 @@
           {/if}
         {/if}
       </div>
+
+      <!-- Reviewer Notes (admin mode) -->
+      {#if adminMode.isAdminMode || loader.transcript?.userNotes}
+        <div class="mb-4">
+          <div class="flex items-center gap-2 mb-2">
+            <h3 class="text-lg font-semibold">Reviewer Notes</h3>
+            {#if adminMode.isAdminMode && !isEditingNotes}
+              <button
+                class="btn btn-ghost btn-xs"
+                onclick={() => isEditingNotes = true}
+                title="Edit notes"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                </svg>
+              </button>
+            {/if}
+          </div>
+
+          {#if adminMode.isAdminMode && isEditingNotes}
+            <!-- Notes Editor (admin mode) - keyed by userNotes to force remount with fresh state -->
+            {#key loader.transcript?.userNotes || ''}
+              <NotesEditor
+                filePath={filePath}
+                notes={loader.transcript?.userNotes || ''}
+                onSave={async () => {
+                  await handleMetadataUpdate();
+                  isEditingNotes = false;
+                }}
+                onCancel={() => isEditingNotes = false}
+              />
+            {/key}
+          {:else if loader.transcript?.userNotes}
+            <!-- Display notes -->
+            <div class="bg-base-200 p-4 rounded-lg">
+              <p class="text-sm whitespace-pre-wrap">{loader.transcript.userNotes}</p>
+            </div>
+          {:else}
+            <p class="text-base-content/50 text-sm italic">No notes</p>
+          {/if}
+        </div>
+      {/if}
 
       <!-- Judge Summary -->
       <!-- svelte-ignore a11y_click_events_have_key_events -->

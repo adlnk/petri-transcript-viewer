@@ -274,6 +274,7 @@ export interface ProcessingMetadata {
 
 export interface TranscriptMetadata {
   transcript_id: string;
+  word_id?: string;  // Human-readable ID like 'fantastic-acoustic-whale'
   auditor_model?: string;
   target_model?: string;
   created_at: string;
@@ -284,6 +285,7 @@ export interface TranscriptMetadata {
   short_name?: string;
   tags?: string[];
   user_tags?: string[];        // Manually added tags (admin mode)
+  user_notes?: string;         // Reviewer notes (admin mode)
   share_online?: boolean;      // true = include in online viewer
   judge_output?: JudgeOutput;
 }
@@ -301,6 +303,7 @@ export interface Transcript {
 // are omitted in list responses and only available when viewing individual transcripts
 export interface TranscriptDisplayMeta {
   id: string;
+  wordId?: string;  // Human-readable ID like 'fantastic-acoustic-whale'
   model: string;
   split: string;
   concerningScore: number;
@@ -313,6 +316,7 @@ export interface TranscriptDisplayMeta {
   characterAnalysis?: string; // Removed from list responses for payload optimization
   tags?: string[];
   userTags?: string[];         // Manually added tags (admin mode)
+  userNotes?: string;          // Reviewer notes (admin mode)
   shareOnline?: boolean;       // true = include in online viewer
   systemPrompt?: string;
   _filePath?: string;
@@ -412,6 +416,7 @@ export interface TableRow {
   transcriptCount?: number;
   
   // Transcript data fields (only present when type === 'transcript')
+  wordId?: string;  // Human-readable ID
   model?: string;
   split?: string;
   summary?: string;
@@ -422,6 +427,7 @@ export interface TableRow {
   justification?: string;
   tags?: string[];
   userTags?: string[];         // Manually added tags (admin mode)
+  userNotes?: string;          // Reviewer notes (admin mode)
   shareOnline?: boolean;       // true = include in online viewer
   originalTranscript?: TranscriptDisplay;
 }

@@ -122,6 +122,7 @@ export function createTranscriptDisplay(
   
   return {
     id: transcript.metadata.transcript_id || transcriptNumber,
+    wordId: transcript.metadata.word_id,
     model: extractModelName(targetModel),
     split: behaviorDir,
     concerningScore: transcript.metadata.judge_output?.scores?.concerning || 0,
@@ -133,6 +134,7 @@ export function createTranscriptDisplay(
     characterAnalysis: transcript.metadata.judge_output?.character_analysis,
     tags: transcript.metadata.tags || [],
     userTags: transcript.metadata.user_tags || [],
+    userNotes: transcript.metadata.user_notes,
     shareOnline: transcript.metadata.share_online,
     systemPrompt: extractSystemPrompt(transcript),
     transcript: transcript,
@@ -157,6 +159,7 @@ export function extractTranscriptMetadata(
   
   return {
     id: transcript.metadata.transcript_id || transcriptNumber,
+    wordId: transcript.metadata.word_id,
     model: extractModelName(targetModel),
     split: behaviorDir,
     concerningScore: transcript.metadata.judge_output?.scores?.concerning || 0,
@@ -168,6 +171,7 @@ export function extractTranscriptMetadata(
     characterAnalysis: transcript.metadata.judge_output?.character_analysis,
     tags: transcript.metadata.tags || [],
     userTags: transcript.metadata.user_tags || [],
+    userNotes: transcript.metadata.user_notes,
     shareOnline: transcript.metadata.share_online,
     systemPrompt: undefined, // Don't extract system prompt for metadata-only
     _filePath: filePath
