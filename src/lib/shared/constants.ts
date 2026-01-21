@@ -28,7 +28,8 @@ export const STORAGE_KEYS = {
   COLUMN_VISIBILITY: 'transcript-table-visible-columns',
   COLUMN_SIZING: 'transcript-table-column-sizing',
   VIEW_MODE: 'transcript-viewer-view-mode',
-  FILTER_STATE: 'transcript-filter-state'
+  FILTER_STATE: 'transcript-filter-state',
+  SORT_STATE: 'transcript-table-sort-state'
 } as const;
 
 // Score thresholds for coloring

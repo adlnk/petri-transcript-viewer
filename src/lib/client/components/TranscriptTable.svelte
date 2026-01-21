@@ -28,10 +28,11 @@
   import TagsFilterHeader from '$lib/client/components/table/TagsFilterHeader.svelte';
   import ModelFilterHeader from '$lib/client/components/table/ModelFilterHeader.svelte';
   import { buildTranscriptUrl, normalizeClientFilePath } from '$lib/client/utils/file-utils';
-  import { loadColumnVisibility, saveColumnVisibility, loadColumnFilters, saveColumnFilters } from '$lib/client/utils/table-persistence';
+  import { loadColumnVisibility, saveColumnVisibility, loadColumnFilters, saveColumnFilters, loadSortState, saveSortState, loadColumnSizing, saveColumnSizing } from '$lib/client/utils/table-persistence';
   import { debugLog } from '$lib/client/utils/debug';
   import { adminMode } from '$lib/client/stores/admin.svelte';
   import { selection } from '$lib/client/stores/selection.svelte';
+  import { transcriptNavigation } from '$lib/client/stores/navigation.svelte';
 
   // Row heights for different density modes
   const ROW_HEIGHTS: Record<RowDensity, number> = {
@@ -90,15 +91,16 @@
     expanded = typeof updaterOrValue === 'function' ? updaterOrValue(expanded) : updaterOrValue;
   };
 
-  // Svelte 5 reactive state for column sizing
-  let columnSizing = $state<ColumnSizingState>({});
-  
+  // Svelte 5 reactive state for column sizing - load from localStorage
+  let columnSizing = $state<ColumnSizingState>(loadColumnSizing());
+
   const handleColumnSizingChange = (updaterOrValue: any) => {
     columnSizing = typeof updaterOrValue === 'function' ? updaterOrValue(columnSizing) : updaterOrValue;
+    saveColumnSizing(columnSizing);
   };
 
-  // Svelte 5 reactive state for sorting
-  let sorting = $state<SortingState>([]);
+  // Svelte 5 reactive state for sorting - load from localStorage
+  let sorting = $state<SortingState>(loadSortState());
 
   // Svelte 5 reactive state for column visibility - initialize from stored or empty
   let columnVisibility = $state<VisibilityState>(loadColumnVisibility());
@@ -126,9 +128,10 @@
   // Svelte 5 reactive state for column filters - load from localStorage
   let columnFilters = $state<any[]>(loadColumnFilters());
 
-  // Minimal controlled sorting handler
+  // Controlled sorting handler with persistence
   const handleSortingChange: OnChangeFn<SortingState> = (updaterOrValue) => {
     sorting = updaterOrValue instanceof Function ? updaterOrValue(sorting) : updaterOrValue;
+    saveSortState(sorting);
   };
 
   const handleColumnFiltersChange = (updaterOrValue: any) => {
@@ -259,6 +262,26 @@
     if (!import.meta.env?.DEV) return;
     const sortingState = table.getState().sorting;
     void sortingState;
+  });
+
+  // Publish sorted transcript paths to navigation store for prev/next navigation
+  $effect(() => {
+    if (viewMode !== 'list') return; // Only track in list view
+
+    const rows = table.getRowModel().rows;
+    const paths: string[] = [];
+
+    for (const row of rows) {
+      const rowData = row.original;
+      if (rowData.type === 'transcript' && rowData.originalTranscript?._filePath) {
+        // Build the full path including currentPath prefix
+        const filePath = rowData.originalTranscript._filePath;
+        const fullPath = currentPath ? `${currentPath}/${filePath}` : filePath;
+        paths.push(fullPath);
+      }
+    }
+
+    transcriptNavigation.setSortedPaths(paths, currentPath || '');
   });
 
   // Scroll margin calculation for window virtualization

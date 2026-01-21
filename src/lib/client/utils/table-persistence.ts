@@ -1,4 +1,4 @@
-import type { VisibilityState, ColumnSizingState, ColumnFiltersState } from '@tanstack/svelte-table';
+import type { VisibilityState, ColumnSizingState, ColumnFiltersState, SortingState } from '@tanstack/svelte-table';
 import { STORAGE_KEYS } from '$lib/shared/constants';
 
 /**
@@ -109,5 +109,33 @@ export function clearColumnFilters(): void {
     localStorage.removeItem(STORAGE_KEYS.FILTER_STATE);
   } catch (error) {
     console.warn('Failed to clear column filters from localStorage:', error);
+  }
+}
+
+/**
+ * Load sort state from localStorage
+ */
+export function loadSortState(): SortingState {
+  if (typeof window === 'undefined') return [];
+
+  try {
+    const stored = localStorage.getItem(STORAGE_KEYS.SORT_STATE);
+    return stored ? JSON.parse(stored) : [];
+  } catch (error) {
+    console.warn('Failed to load sort state from localStorage:', error);
+    return [];
+  }
+}
+
+/**
+ * Save sort state to localStorage
+ */
+export function saveSortState(sortState: SortingState): void {
+  if (typeof window === 'undefined') return;
+
+  try {
+    localStorage.setItem(STORAGE_KEYS.SORT_STATE, JSON.stringify(sortState));
+  } catch (error) {
+    console.warn('Failed to save sort state to localStorage:', error);
   }
 }

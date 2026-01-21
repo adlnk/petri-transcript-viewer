@@ -3,6 +3,7 @@
   import { base } from '$app/paths';
   import { parseUrlPath, generateTranscriptUrl } from '$lib/client/utils/file-utils';
   import TranscriptViewer from '$lib/client/components/transcript/TranscriptViewer.svelte';
+  import TranscriptNavigation from '$lib/client/components/transcript/TranscriptNavigation.svelte';
   
   // Parse the file path from URL parameters
   let filePath = $derived.by(() => {
@@ -92,6 +93,9 @@
         </ul>
       </div>
     </div>
+    <div class="flex-none">
+      <TranscriptNavigation currentFilePath={filePath} />
+    </div>
   </div>
 
   <main class="py-6">
@@ -108,7 +112,9 @@
         </div>
       </div>
     {:else}
-      <TranscriptViewer {filePath} />
+      {#key filePath}
+        <TranscriptViewer {filePath} />
+      {/key}
     {/if}
   </main>
 </div>
