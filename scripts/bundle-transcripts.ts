@@ -51,6 +51,7 @@ interface TranscriptDisplayMeta {
   split: string;
   concerningScore: number;
   summary: string;  // Truncated to 200 chars
+  compactSummary?: string; // 1-2 sentence ultra-brief summary
   scores: Record<string, number>;
   // scoreDescriptions - REMOVED: sent separately in dimension-descriptions.json
   // judgeSummary - REMOVED: not needed for list view
@@ -159,6 +160,7 @@ function extractTranscriptMetadata(transcript: Transcript, filePath: string): Tr
     split: behaviorDir,
     concerningScore: transcript.metadata.judge_output?.scores?.concerning || 0,
     summary: truncateString(fullSummary, 200),  // Truncated for list view
+    compactSummary: transcript.metadata.judge_output?.compact_summary,  // Ultra-brief summary
     scores: transcript.metadata.judge_output?.scores || {},
     // scoreDescriptions: REMOVED - sent separately in dimension-descriptions.json
     // judgeSummary: REMOVED - full data available when viewing individual transcript

@@ -12,6 +12,7 @@
   interface Props {
     score: number;
     scoreName: string;
+    displayName?: string;  // Human-readable name (falls back to scoreName)
     description?: string;
     badgeClass?: string;
     isPetriDefault?: boolean;
@@ -19,7 +20,10 @@
     id?: string;
   }
 
-  let { score, scoreName, description, badgeClass = '', isPetriDefault = false, onClick, id }: Props = $props();
+  let { score, scoreName, displayName, description, badgeClass = '', isPetriDefault = false, onClick, id }: Props = $props();
+
+  // Use displayName if provided, otherwise fall back to scoreName
+  let shownName = $derived(displayName || scoreName);
 
   function handleClick() {
     if (onClick) {
@@ -74,7 +78,7 @@
       class="badge {finalBadgeClass} {petriDefaultStyle} gap-1 p-3 justify-between min-w-0 cursor-help {onClick ? 'cursor-pointer hover:brightness-110' : ''}"
       onclick={handleClick}
     >
-      <span class="text-xs truncate" title={scoreName}>{scoreName}</span>
+      <span class="text-xs truncate" title={scoreName}>{shownName}</span>
       <span class="font-mono font-bold">{score}/10</span>
     </div>
   </div>
@@ -84,7 +88,7 @@
     class="badge {finalBadgeClass} {petriDefaultStyle} gap-1 p-3 justify-between min-w-0 {onClick ? 'cursor-pointer hover:brightness-110' : ''}"
     onclick={handleClick}
   >
-    <span class="text-xs truncate" title={scoreName}>{scoreName}</span>
+    <span class="text-xs truncate" title={scoreName}>{shownName}</span>
     <span class="font-mono font-bold">{score}/10</span>
   </div>
 {/if}

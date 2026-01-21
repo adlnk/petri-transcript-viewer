@@ -77,6 +77,7 @@ export function buildFolderTreeFromTranscripts(
       model: transcript.model,
       split: transcript.split,
       summary: transcript.summary,
+      compactSummary: transcript.compactSummary,
       scores: transcript.scores,
       concerningScore: transcript.concerningScore,
       judgeSummary: transcript.judgeSummary,

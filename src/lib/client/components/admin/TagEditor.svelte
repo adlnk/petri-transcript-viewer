@@ -21,6 +21,7 @@
 	let showDropdown = $state(false);
 	let saving = $state(false);
 	let error = $state<string | null>(null);
+	let selectedIndex = $state(-1);  // -1 means no selection
 
 	// Load available tags for autocomplete
 	onMount(async () => {
@@ -47,6 +48,13 @@
 			.slice(0, 10);
 	});
 
+	// Reset selection when suggestions change
+	$effect(() => {
+		// Access suggestions to create dependency
+		const _ = suggestions;
+		selectedIndex = -1;
+	});
+
 	function addTag(tag: string) {
 		const trimmed = tag.trim();
 		if (!trimmed) return;
@@ -62,17 +70,32 @@
 	}
 
 	function handleKeyDown(e: KeyboardEvent) {
-		if (e.key === 'Enter') {
-			e.preventDefault();
-			if (suggestions.length > 0) {
-				addTag(suggestions[0]);
-			} else if (inputValue.trim()) {
+		if (e.key === 'Enter' || e.key === 'Tab') {
+			if (suggestions.length > 0 && showDropdown) {
+				e.preventDefault();
+				// Select highlighted item, or first item if none highlighted
+				const indexToUse = selectedIndex >= 0 ? selectedIndex : 0;
+				addTag(suggestions[indexToUse]);
+			} else if (e.key === 'Enter' && inputValue.trim()) {
+				e.preventDefault();
 				// Create new tag
 				addTag(inputValue);
+			}
+			// Let Tab proceed normally if no suggestions
+		} else if (e.key === 'ArrowDown') {
+			if (suggestions.length > 0) {
+				e.preventDefault();
+				selectedIndex = (selectedIndex + 1) % suggestions.length;
+			}
+		} else if (e.key === 'ArrowUp') {
+			if (suggestions.length > 0) {
+				e.preventDefault();
+				selectedIndex = selectedIndex <= 0 ? suggestions.length - 1 : selectedIndex - 1;
 			}
 		} else if (e.key === 'Escape') {
 			showDropdown = false;
 			inputValue = '';
+			selectedIndex = -1;
 		}
 	}
 
@@ -151,11 +174,12 @@
 		<!-- Autocomplete dropdown -->
 		{#if showDropdown && suggestions.length > 0}
 			<div class="absolute z-50 w-full mt-1 bg-base-100 border border-base-300 rounded-lg shadow-lg max-h-48 overflow-y-auto">
-				{#each suggestions as suggestion}
+				{#each suggestions as suggestion, i}
 					<button
 						type="button"
-						class="w-full px-3 py-1.5 text-left text-sm hover:bg-base-200 transition-colors"
+						class="w-full px-3 py-1.5 text-left text-sm transition-colors {i === selectedIndex ? 'bg-primary/20 text-primary-content' : 'hover:bg-base-200'}"
 						onmousedown={() => addTag(suggestion)}
+						onmouseenter={() => selectedIndex = i}
 					>
 						{suggestion}
 					</button>

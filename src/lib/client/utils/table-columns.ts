@@ -232,6 +232,9 @@ export function createColumns(scoreTypes: string[], data: TableRow[] = [], score
       header: 'Summary',
       cell: ({ row, getValue }) => {
         if (row.original.type === 'folder') return '';
+        // Prefer compactSummary if available, fall back to truncated summary
+        const compactSummary = row.original.compactSummary;
+        if (compactSummary) return compactSummary;
         const summary = getValue() as string;
         return summary ? (summary.length > 150 ? summary.slice(0, 150) + '...' : summary) : '';
       },

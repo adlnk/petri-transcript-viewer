@@ -48,6 +48,7 @@ function createTranscriptDisplayFromRaw(transcript: any, filePath: string): Tran
     split: behaviorDir,
     concerningScore: transcript.metadata?.judge_output?.scores?.concerning || 0,
     summary: transcript.metadata?.judge_output?.summary || transcript.metadata?.description || 'No summary available',
+    compactSummary: transcript.metadata?.judge_output?.compact_summary,
     scores: transcript.metadata?.judge_output?.scores || {},
     scoreDescriptions: transcript.metadata?.judge_output?.score_descriptions,
     judgeSummary: transcript.metadata?.judge_output?.summary || 'No judgment summary available',

@@ -15,6 +15,11 @@ let metadataIndexCache: { metadata: any[]; transcriptCount: number } | null = nu
 let dimensionDescriptionsCache: Record<string, string> | null = null;
 let dimensionDescriptionsLoading: Promise<Record<string, string>> | null = null;
 
+// Cache for dimension display names (loaded once, never expires)
+// Always loaded from /data/dimension-display-names.json (generated from Python)
+let dimensionDisplayNamesCache: Record<string, string> | null = null;
+let dimensionDisplayNamesLoading: Promise<Record<string, string>> | null = null;
+
 /**
  * Load dimension descriptions from static file or API.
  * Uses singleton pattern - only loads once per session.
@@ -58,6 +63,49 @@ async function loadDimensionDescriptions(): Promise<Record<string, string>> {
   })();
 
   return dimensionDescriptionsLoading;
+}
+
+/**
+ * Load dimension display names from static file.
+ * Uses singleton pattern - only loads once per session.
+ * Exported for use in detail view (TranscriptViewer).
+ */
+export async function loadDimensionDisplayNames(): Promise<Record<string, string>> {
+  // Return cached if available
+  if (dimensionDisplayNamesCache) {
+    return dimensionDisplayNamesCache;
+  }
+
+  // If already loading, wait for that promise
+  if (dimensionDisplayNamesLoading) {
+    return dimensionDisplayNamesLoading;
+  }
+
+  // Start loading (always from static file, generated from Python)
+  dimensionDisplayNamesLoading = (async () => {
+    try {
+      const url = `${base}/data/dimension-display-names.json`;
+      debugLog('📝 [DISPLAY-NAMES] Loading dimension display names from:', url);
+      const response = await fetch(url);
+
+      if (!response.ok) {
+        console.warn(`Failed to load dimension display names: ${response.status}`);
+        return {};
+      }
+
+      const displayNames = await response.json();
+      debugLog('📝 [DISPLAY-NAMES] Loaded', Object.keys(displayNames).length, 'dimension display names');
+      dimensionDisplayNamesCache = displayNames;
+      return displayNames;
+    } catch (err) {
+      console.warn('Failed to load dimension display names:', err);
+      return {};
+    } finally {
+      dimensionDisplayNamesLoading = null;
+    }
+  })();
+
+  return dimensionDisplayNamesLoading;
 }
 
 // Module-level cache for loaded transcript data (persists across navigation)
@@ -108,14 +156,19 @@ export function createTranscriptDataLoader() {
 
   // Score descriptions loaded from separate file (not from transcript data)
   let scoreDescriptions = $state<Record<string, string>>({});
+  // Score display names loaded from separate file (generated from Python)
+  let scoreDisplayNames = $state<Record<string, string>>({});
 
   // Derived views built from the raw data (cached automatically by Svelte)
   let transcripts = $derived(rawTranscripts); // Return raw transcripts for list view
   let folderTree = $derived(buildFolderTreeFromTranscripts(rawTranscripts));
 
-  // Load dimension descriptions on startup (fire-and-forget, cached globally)
+  // Load dimension metadata on startup (fire-and-forget, cached globally)
   loadDimensionDescriptions().then(descriptions => {
     scoreDescriptions = descriptions;
+  });
+  loadDimensionDisplayNames().then(displayNames => {
+    scoreDisplayNames = displayNames;
   });
 
   async function loadData(viewMode: 'list' | 'tree', subdirectoryPath?: string, forceReload = false) {
@@ -244,6 +297,8 @@ export function createTranscriptDataLoader() {
     get loadingStats() { return loadingStats; },
     // Score descriptions loaded from separate file (not from individual transcripts)
     get scoreDescriptions() { return scoreDescriptions; },
+    // Score display names loaded from separate file (generated from Python)
+    get scoreDisplayNames() { return scoreDisplayNames; },
     loadData,
     invalidateCache
   };

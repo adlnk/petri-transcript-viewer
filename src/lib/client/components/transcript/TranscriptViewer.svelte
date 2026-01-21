@@ -2,7 +2,7 @@
   import type { Message } from '$lib/shared/types';
   import type { ConversationColumn } from '$lib/shared/transcript-parser';
   import { createTranscriptLoader } from '$lib/client/utils/transcript.svelte';
-  import { invalidateListDataCache } from '$lib/shared/services/transcript-data.svelte';
+  import { invalidateListDataCache, loadDimensionDisplayNames } from '$lib/shared/services/transcript-data.svelte';
   import { parseTranscriptEvents, extractAvailableViews } from '$lib/shared/transcript-parser';
   import { handleCopyAction, type CopyAction } from '$lib/client/utils/copy-utils';
   import MessageCard from './MessageCard.svelte';
@@ -128,6 +128,16 @@
 
   // Load transcript using our new loader
   const loader = createTranscriptLoader(filePath);
+
+  // Dimension display names (loaded from static file)
+  let dimensionDisplayNames = $state<Record<string, string>>({});
+
+  // Load display names on mount
+  $effect(() => {
+    loadDimensionDisplayNames().then(names => {
+      dimensionDisplayNames = names;
+    });
+  });
 
   // View settings state
   let selectedView = $state('combined');
@@ -296,99 +306,115 @@
     }
   }
 
-  // Handle score click - scroll to and highlight score name in justification
+  // Handle score click - scroll to the score mention in justification
   function handleScoreClick(scoreName: string) {
-    const justificationEl = document.getElementById('judge-justification');
-    if (!justificationEl) return;
-
-    // Convert snake_case to various formats for searching
-    const searchTerms = [
-      scoreName,
-      scoreName.replace(/_/g, ' '),
-      scoreName.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
-    ];
-
-    // Check if a match looks like a score label (not just any occurrence of the word)
-    function isScoreLabel(text: string, index: number, termLen: number, node: Text): boolean {
-      const afterMatch = text.slice(index + termLen);
-      const beforeMatch = text.slice(0, index);
-
-      // Check if followed by colon, score pattern, parenthetical score, or N/10 format
-      const followedByScorePattern = /^[\s]*[:(\[]/.test(afterMatch) || /^[\s]*\d+\/10/.test(afterMatch);
-
-      // Check if preceded by bullet point or at start of line
-      const afterBullet = /[-*•]\s*$/.test(beforeMatch) || /[\n\r]\s*[-*•]?\s*$/.test(beforeMatch);
-      const atLineStart = index === 0 || /[\n\r]\s*$/.test(beforeMatch);
-
-      // Check if parent element is bold/strong (common for score headers)
-      const parent = node.parentElement;
-      const inBoldElement = parent?.tagName === 'STRONG' || parent?.tagName === 'B';
-
-      // Check if followed by score value pattern (e.g., ": 1", "(1)", "1/10")
-      const followedByScoreValue = /^[\s]*[:(]\s*\d/.test(afterMatch);
-
-      return followedByScorePattern || followedByScoreValue || afterBullet || (atLineStart && /^[\s]*:/.test(afterMatch)) || inBoldElement;
+    // Look for the score anchor in the justification
+    const scoreAnchor = document.getElementById(`justification-score-${scoreName}`);
+    if (scoreAnchor) {
+      scoreAnchor.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      // Highlight briefly
+      scoreAnchor.classList.add('ring-2', 'ring-primary', 'ring-offset-2');
+      setTimeout(() => {
+        scoreAnchor.classList.remove('ring-2', 'ring-primary', 'ring-offset-2');
+      }, 2000);
+      return;
     }
 
-    // Find the text node containing the score name as a label
-    const walker = document.createTreeWalker(justificationEl, NodeFilter.SHOW_TEXT, null);
-    let found = false;
-    let node: Text | null;
-
-    while ((node = walker.nextNode() as Text | null)) {
-      const text = node.textContent || '';
-      for (const term of searchTerms) {
-        const index = text.toLowerCase().indexOf(term.toLowerCase());
-        if (index !== -1 && isScoreLabel(text, index, term.length, node)) {
-          // Scroll the justification section into view
-          justificationEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
-
-          // Highlight the found text using a mark element
-          const range = document.createRange();
-          range.setStart(node, index);
-          range.setEnd(node, index + term.length);
-
-          const mark = document.createElement('mark');
-          mark.className = 'bg-primary/30 px-1 rounded transition-all duration-300';
-          range.surroundContents(mark);
-
-          // Add back-link after the mark
-          const backLink = document.createElement('a');
-          backLink.href = `#score-${scoreName}`;
-          backLink.className = 'text-primary hover:underline ml-1 text-sm';
-          backLink.textContent = '^';
-          backLink.title = 'Back to score';
-          backLink.onclick = (e) => {
-            e.preventDefault();
-            const scoreEl = document.getElementById(`score-${scoreName}`);
-            if (scoreEl) {
-              scoreEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-              // Highlight the score badge briefly
-              scoreEl.classList.add('ring-2', 'ring-primary', 'ring-offset-2');
-              setTimeout(() => {
-                scoreEl.classList.remove('ring-2', 'ring-primary', 'ring-offset-2');
-              }, 2000);
-            }
-          };
-          mark.after(backLink);
-
-          // Remove highlight and back-link after 5 seconds
-          setTimeout(() => {
-            const parent = mark.parentNode;
-            if (parent) {
-              parent.replaceChild(document.createTextNode(mark.textContent || ''), mark);
-              backLink.remove();
-              parent.normalize();
-            }
-          }, 5000);
-
-          found = true;
-          break;
-        }
-      }
-      if (found) break;
+    // Fallback: scroll to justification section
+    const justificationEl = document.getElementById('judge-justification');
+    if (justificationEl) {
+      justificationEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
   }
+
+  // Get score badge color class based on value and dimension type
+  function getScoreBadgeClass(score: number, scoreName: string): string {
+    // Check if this is a positive scale dimension
+    const isPositive = ['genuine_warmth_and_care', 'intellectual_engagement_quality', 'scenario_realism', 'admirable'].includes(scoreName);
+
+    if (isPositive) {
+      // High = good (green), low = bad (red)
+      if (score >= 8) return 'badge-success';
+      if (score >= 6) return 'badge-info';
+      if (score >= 4) return 'badge-warning';
+      return 'badge-error';
+    } else {
+      // High = bad (red), low = good
+      if (score >= 8) return 'badge-error';
+      if (score >= 6) return 'badge-warning';
+      if (score >= 4) return 'badge-info';
+      if (score >= 2) return 'badge-neutral';
+      return 'badge-ghost';
+    }
+  }
+
+  // Render justification with score names styled as clickable badges
+  function renderJustificationWithScores(text: string | null | undefined, scores: Record<string, number>): string {
+    if (!text) return '';
+    let result = escapeHtml(text);
+
+    // First apply citation rendering
+    result = result.replace(/\[([\d,\s\-]+)\]/g, (match, nums) => {
+      const expanded = nums.replace(/(\d+)\s*-\s*(\d+)/g, (_: string, start: string, end: string) => {
+        const s = parseInt(start, 10);
+        const e = parseInt(end, 10);
+        if (e > s && e - s < 20) {
+          return Array.from({ length: e - s + 1 }, (_, i) => s + i).join(',');
+        }
+        return `${start},${end}`;
+      });
+      const numbers = expanded.split(/[,\s]+/).filter((n: string) => n.trim() && /^\d+$/.test(n.trim()));
+      const links = numbers.map((num: string) =>
+        `<a href="#" class="citation-link text-primary hover:underline font-semibold" data-citation="${num.trim()}">${num.trim()}</a>`
+      );
+      return `[${links.join(', ')}]`;
+    });
+
+    // Now find and style score names
+    // Pattern: **score_name**: (N) or **score_name**: N or score_name: N
+    // We need to match score names that exist in our scores object
+    const scoreNames = Object.keys(scores);
+
+    for (const scoreName of scoreNames) {
+      const scoreValue = scores[scoreName];
+      const badgeClass = getScoreBadgeClass(scoreValue, scoreName);
+      const displayName = dimensionDisplayNames[scoreName] || scoreName.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+      const description = loader.transcript?.scoreDescriptions?.[scoreName] || '';
+      const tooltipAttr = description ? `title="${escapeHtml(description.split('.')[0])}"` : '';
+
+      // Create styled badge with score value
+      const styledBadge = `<span id="justification-score-${scoreName}" class="inline-flex items-center gap-1 cursor-pointer group" ${tooltipAttr}><span class="badge ${badgeClass} badge-sm">${displayName}</span><span class="font-mono text-xs">${scoreValue}/10</span><a href="#score-${scoreName}" class="text-primary hover:underline text-xs ml-0.5" onclick="event.preventDefault(); document.getElementById('score-${scoreName}')?.scrollIntoView({behavior:'smooth',block:'center'}); document.getElementById('score-${scoreName}')?.classList.add('ring-2','ring-primary','ring-offset-2'); setTimeout(() => document.getElementById('score-${scoreName}')?.classList.remove('ring-2','ring-primary','ring-offset-2'), 2000);">↑</a></span>`;
+
+      // Match patterns: **score_name** or score_name followed by : and optionally (N) or N
+      // Use word boundaries to avoid partial matches
+      const escapedName = scoreName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+      // Pattern 1: **score_name**: (N) or **score_name**: N
+      const boldPattern = new RegExp(`\\*\\*${escapedName}\\*\\*\\s*:\\s*(?:\\(?(\\d+)\\)?|\\d+/10)`, 'gi');
+      result = result.replace(boldPattern, styledBadge);
+
+      // Pattern 2: score_name: (N) or score_name: N (at start of line or after bullet)
+      const plainPattern = new RegExp(`(^|\\n|•|-)\\s*${escapedName}\\s*:\\s*(?:\\(?(\\d+)\\)?|\\d+/10)`, 'gi');
+      result = result.replace(plainPattern, `$1 ${styledBadge}`);
+    }
+
+    return result;
+  }
+
+  // Extract the auditor seed prompt from transcript events
+  let auditorSeedPrompt = $derived.by(() => {
+    const events = loader.transcript?.transcript?.events;
+    if (!events || !Array.isArray(events)) return null;
+
+    // Look for the first decision_event which contains the auditor's initial instruction
+    for (const event of events) {
+      if (event.type === 'decision_event' && event.content) {
+        // The decision_event content is the auditor's instruction
+        return typeof event.content === 'string' ? event.content : JSON.stringify(event.content, null, 2);
+      }
+    }
+    return null;
+  });
 
   // Horizontal overflow detection for smart centering
   let scrollContainer = $state<HTMLDivElement | null>(null);
@@ -487,6 +513,17 @@
         </div>
       </div>
 
+      <!-- Transcript Summary (at top, above scores) -->
+      {#if loader.transcript?.compactSummary || loader.transcript?.summary}
+        {@const displaySummary = loader.transcript.compactSummary ||
+          (loader.transcript.summary.length > 250
+            ? loader.transcript.summary.slice(0, 250) + '...'
+            : loader.transcript.summary)}
+        <div class="mb-6 p-4 bg-base-200 rounded-lg border-l-4 border-primary">
+          <p class="text-sm leading-relaxed italic">{displaySummary}</p>
+        </div>
+      {/if}
+
       <!-- Scores by Category -->
       <div class="mb-6 space-y-4">
         <h3 class="text-lg font-semibold">Scores</h3>
@@ -499,6 +536,7 @@
                   id="score-{key}"
                   score={value}
                   scoreName={key}
+                  displayName={dimensionDisplayNames[key]}
                   description={loader.transcript?.scoreDescriptions?.[key]}
                   isPetriDefault={PETRI_DEFAULT_SCORES.has(key)}
                   onClick={handleScoreClick}
@@ -508,6 +546,21 @@
           </div>
         {/each}
       </div>
+
+      <!-- Auditor Seed Prompt (collapsible) -->
+      {#if auditorSeedPrompt}
+        <div class="collapse collapse-arrow bg-base-200 mb-4">
+          <input type="checkbox" />
+          <div class="collapse-title text-lg font-semibold">
+            Auditor Seed Prompt
+          </div>
+          <div class="collapse-content">
+            <div class="bg-base-300 p-4 rounded-lg text-sm whitespace-pre-wrap max-h-96 overflow-y-auto">
+              {auditorSeedPrompt}
+            </div>
+          </div>
+        </div>
+      {/if}
 
       <!-- Share Online Status (admin mode) -->
       {#if adminMode.isAdminMode}
@@ -625,7 +678,7 @@
       <!-- svelte-ignore a11y_no_static_element_interactions -->
       <div id="judge-justification" class="mb-4" onclick={handleCitationClick}>
         <h3 class="text-lg font-semibold mb-2">Judge Justification</h3>
-        <p class="text-sm leading-relaxed whitespace-pre-wrap">{@html renderCitations(loader.transcript?.justification)}</p>
+        <p class="text-sm leading-relaxed whitespace-pre-wrap">{@html renderJustificationWithScores(loader.transcript?.justification, loader.transcript?.scores || {})}</p>
       </div>
 
       <!-- Character Analysis (from independent scoring mode) -->

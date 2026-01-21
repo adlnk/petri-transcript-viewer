@@ -307,7 +307,8 @@ export interface TranscriptDisplayMeta {
   model: string;
   split: string;
   concerningScore: number;
-  summary: string;  // Truncated to 200 chars in list view
+  summary: string;  // Full judge summary, truncated in list view
+  compactSummary?: string; // 1-2 sentence ultra-brief summary (falls back to truncated summary)
   scores: Record<string, number>;
   // NOTE: scoreDescriptions removed from list responses (loaded separately from dimension-descriptions.json)
   scoreDescriptions?: Record<string, string>;  // Only populated in detail view
@@ -420,6 +421,7 @@ export interface TableRow {
   model?: string;
   split?: string;
   summary?: string;
+  compactSummary?: string; // 1-2 sentence ultra-brief summary
   scores?: Record<string, number>;
   scoreDescriptions?: Record<string, string>;
   concerningScore?: number;
