@@ -54,11 +54,18 @@
   // Throttling to prevent rapid multiple clicks
   let isToggling = $state(false);
 
-  // Density-based CSS classes
+  // Density-based CSS classes for text content
   let densityClasses = $derived({
     compact: 'whitespace-nowrap overflow-hidden text-ellipsis',
     normal: 'line-clamp-2',
-    expanded: 'whitespace-normal',
+    expanded: 'whitespace-normal break-words',  // Allow full wrapping in expanded mode
+  }[rowDensity]);
+
+  // Density-based padding classes
+  let paddingClasses = $derived({
+    compact: 'px-3 py-1',
+    normal: 'px-3 py-3',
+    expanded: 'px-4 py-4',  // More padding in expanded mode
   }[rowDensity]);
 
 </script>
@@ -138,7 +145,10 @@
 {:else if !isFolder}
   <!-- Data row cells -->
   {@const cellElement = isGridCell ? 'div' : 'td'}
-  {@const baseClasses = isGridCell ? 'px-3 py-3 overflow-x-auto overflow-y-hidden table-cell-no-scrollbar border-b border-base-200 flex items-center min-h-[60px]' : 'px-3 py-3 overflow-x-auto overflow-y-hidden table-cell-no-scrollbar'}
+  {@const overflowClasses = rowDensity === 'expanded' ? 'overflow-visible' : 'overflow-x-auto overflow-y-hidden'}
+  {@const baseClasses = isGridCell
+    ? `${paddingClasses} ${overflowClasses} table-cell-no-scrollbar border-b border-base-200 flex items-start`
+    : `${paddingClasses} ${overflowClasses} table-cell-no-scrollbar`}
   {@const cellStyle = isGridCell ?
     `${virtualItemSize ? `height: ${virtualItemSize}px;` : ''} ${virtualItemTransform ? `transform: ${virtualItemTransform};` : ''}` :
     `width: ${cellWidth}px; min-width: ${cellWidth}px;`}

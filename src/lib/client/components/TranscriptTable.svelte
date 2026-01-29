@@ -38,7 +38,7 @@
   const ROW_HEIGHTS: Record<RowDensity, number> = {
     compact: 36,
     normal: 60,
-    expanded: 120,
+    expanded: 180,  // Increased for more content visibility
   };
 
   interface Props {

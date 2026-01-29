@@ -87,6 +87,7 @@ export async function loadCachedTranscriptsMetadataOnly(
               split: behaviorDir,
               concerningScore: metadata.judge_output?.scores?.concerning || 0,
               summary: summary.length > 200 ? summary.substring(0, 200) + '...' : summary, // Truncate long summaries
+              compactSummary: metadata.judge_output?.compact_summary,  // 1-2 sentence summary
               scores: metadata.judge_output?.scores || {},
               // scoreDescriptions: REMOVED - sent via separate /api/transcripts/descriptions endpoint
               judgeSummary: undefined, // Remove heavy field - available in detail view
