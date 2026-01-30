@@ -8,11 +8,21 @@
  */
 
 import { openDB, type IDBPDatabase } from 'idb';
+
+// File System Access API type augmentation (not fully in TypeScript's lib)
+declare global {
+  interface FileSystemFileHandle {
+    queryPermission(descriptor?: { mode?: 'read' | 'readwrite' }): Promise<PermissionState>;
+    requestPermission(descriptor?: { mode?: 'read' | 'readwrite' }): Promise<PermissionState>;
+  }
+}
 import type { ReviewerAnnotations, ReviewerAnnotationsExport, ReviewerScore, ReviewerIssueFlag } from '$lib/shared/types';
 
 const DB_NAME = 'transcript-reviewer';
-const DB_VERSION = 1;
+const DB_VERSION = 2;  // Bumped for file handle store
 const STORE_NAME = 'annotations';
+const FILE_HANDLE_STORE = 'file-handles';
+const SAVE_FILE_HANDLE_KEY = 'auto-save-handle';
 
 // Backup keys for localStorage
 const BACKUP_KEY = 'transcript-reviewer-backup';
@@ -35,9 +45,13 @@ async function getDb(): Promise<IDBPDatabase> {
   if (dbInstance) return dbInstance;
 
   dbInstance = await openDB(DB_NAME, DB_VERSION, {
-    upgrade(db) {
+    upgrade(db, oldVersion) {
       if (!db.objectStoreNames.contains(STORE_NAME)) {
         db.createObjectStore(STORE_NAME, { keyPath: 'filePath' });
+      }
+      // v2: Add store for file handles (used for silent auto-save)
+      if (oldVersion < 2 && !db.objectStoreNames.contains(FILE_HANDLE_STORE)) {
+        db.createObjectStore(FILE_HANDLE_STORE);
       }
     },
   });
@@ -85,22 +99,28 @@ export async function deleteAnnotation(filePath: string): Promise<void> {
 }
 
 /**
- * Export all annotations as JSON and trigger download
+ * Build the export data structure
  */
-export async function exportAnnotationsAsJson(reviewerName: string): Promise<void> {
-  const annotations = await getAllAnnotations();
-
-  const exportData: ReviewerAnnotationsExport = {
+function buildExportData(annotations: Map<string, ReviewerAnnotations>, reviewerName: string): ReviewerAnnotationsExport {
+  return {
     exportedAt: new Date().toISOString(),
     reviewerName,
-    // Remove redundant reviewerName from each annotation since it's at top level
     annotations: Array.from(annotations.entries()).map(([filePath, annotation]) => {
       const { reviewerName: _, ...rest } = annotation;
       return { filePath, ...rest };
     })
   };
+}
 
-  // Create and download file
+/**
+ * Export all annotations as JSON and trigger download dialog
+ * Use this for user-initiated exports where they want to choose the location
+ */
+export async function exportAnnotationsAsJson(reviewerName: string): Promise<void> {
+  const annotations = await getAllAnnotations();
+  const exportData = buildExportData(annotations, reviewerName);
+
+  // Create and download file (triggers save dialog)
   const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -110,6 +130,157 @@ export async function exportAnnotationsAsJson(reviewerName: string): Promise<voi
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
+}
+
+// ============================================================================
+// Silent auto-save using File System Access API
+// ============================================================================
+
+/**
+ * Check if File System Access API is supported
+ */
+function isFileSystemAccessSupported(): boolean {
+  return 'showSaveFilePicker' in window;
+}
+
+/**
+ * Get stored file handle for auto-save
+ */
+async function getStoredFileHandle(): Promise<FileSystemFileHandle | null> {
+  try {
+    const db = await getDb();
+    return await db.get(FILE_HANDLE_STORE, SAVE_FILE_HANDLE_KEY) || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Store file handle for future auto-saves
+ */
+async function storeFileHandle(handle: FileSystemFileHandle): Promise<void> {
+  const db = await getDb();
+  await db.put(FILE_HANDLE_STORE, handle, SAVE_FILE_HANDLE_KEY);
+}
+
+/**
+ * Clear stored file handle
+ */
+export async function clearSaveFileHandle(): Promise<void> {
+  const db = await getDb();
+  await db.delete(FILE_HANDLE_STORE, SAVE_FILE_HANDLE_KEY);
+}
+
+/**
+ * Check if we have a valid save location configured
+ */
+export async function hasSaveLocation(): Promise<boolean> {
+  if (!isFileSystemAccessSupported()) return false;
+  const handle = await getStoredFileHandle();
+  return handle !== null;
+}
+
+/**
+ * Prompt user to choose a save location (first-time setup)
+ * Returns true if location was set, false if cancelled
+ */
+export async function setupSaveLocation(reviewerName: string): Promise<boolean> {
+  if (!isFileSystemAccessSupported()) {
+    console.warn('File System Access API not supported');
+    return false;
+  }
+
+  try {
+    const handle = await (window as any).showSaveFilePicker({
+      suggestedName: `reviewer-annotations-${reviewerName.toLowerCase().replace(/\s+/g, '-')}.json`,
+      types: [{
+        description: 'JSON Files',
+        accept: { 'application/json': ['.json'] }
+      }]
+    });
+    await storeFileHandle(handle);
+    return true;
+  } catch (err: any) {
+    // User cancelled or error
+    if (err.name !== 'AbortError') {
+      console.warn('Failed to setup save location:', err);
+    }
+    return false;
+  }
+}
+
+/**
+ * Save annotations silently to the configured location
+ * Returns: 'saved' | 'no-location' | 'permission-denied' | 'error'
+ */
+export async function saveAnnotationsSilently(reviewerName: string): Promise<'saved' | 'no-location' | 'permission-denied' | 'error'> {
+  if (!isFileSystemAccessSupported()) {
+    return 'no-location';
+  }
+
+  const handle = await getStoredFileHandle();
+  if (!handle) {
+    return 'no-location';
+  }
+
+  try {
+    // Verify we still have permission (may have been revoked)
+    const permission = await handle.queryPermission({ mode: 'readwrite' });
+    if (permission !== 'granted') {
+      // Try to request permission
+      const newPermission = await handle.requestPermission({ mode: 'readwrite' });
+      if (newPermission !== 'granted') {
+        return 'permission-denied';
+      }
+    }
+
+    const annotations = await getAllAnnotations();
+    const exportData = buildExportData(annotations, reviewerName);
+
+    const writable = await handle.createWritable();
+    await writable.write(JSON.stringify(exportData, null, 2));
+    await writable.close();
+
+    return 'saved';
+  } catch (err: any) {
+    console.warn('Silent save failed:', err);
+    if (err.name === 'NotAllowedError') {
+      return 'permission-denied';
+    }
+    return 'error';
+  }
+}
+
+/**
+ * Save annotations - tries silent save first, falls back to prompting for location
+ * Returns true if saved successfully
+ */
+export async function saveAnnotations(reviewerName: string): Promise<boolean> {
+  const count = await getAnnotationCount();
+  if (count === 0) return true; // Nothing to save
+
+  // Try silent save first
+  const result = await saveAnnotationsSilently(reviewerName);
+
+  if (result === 'saved') {
+    localStorage.setItem(LAST_EXPORT_KEY, new Date().toISOString());
+    return true;
+  }
+
+  if (result === 'no-location' || result === 'permission-denied') {
+    // Need to set up or re-authorize location
+    const success = await setupSaveLocation(reviewerName);
+    if (success) {
+      // Try again with new handle
+      const retryResult = await saveAnnotationsSilently(reviewerName);
+      if (retryResult === 'saved') {
+        localStorage.setItem(LAST_EXPORT_KEY, new Date().toISOString());
+        return true;
+      }
+    }
+  }
+
+  return false;
 }
 
 // Helper functions for updating specific parts of annotations
@@ -339,14 +510,37 @@ export function getLastExportTime(): string | null {
 }
 
 /**
- * Perform an auto-export (silent, saves to downloads)
+ * Perform an auto-save (silent, to configured location)
+ * Falls back to download dialog if no location configured
  */
 async function performAutoExport(reviewerName: string): Promise<void> {
   const count = await getAnnotationCount();
-  if (count === 0) return; // Nothing to export
+  if (count === 0) return; // Nothing to save
 
-  await exportAnnotationsAsJson(reviewerName);
-  localStorage.setItem(LAST_EXPORT_KEY, new Date().toISOString());
+  // Try silent save first
+  const result = await saveAnnotationsSilently(reviewerName);
+
+  if (result === 'saved') {
+    localStorage.setItem(LAST_EXPORT_KEY, new Date().toISOString());
+    console.log('Auto-save completed silently');
+    return;
+  }
+
+  // If no location set up yet, skip auto-save (don't interrupt user with dialog)
+  // User needs to do a manual save first to set up the location
+  if (result === 'no-location') {
+    console.log('Auto-save skipped: no save location configured. Use Save button to set up.');
+    return;
+  }
+
+  // Permission denied - location was set up but permission revoked
+  // Skip for now, user will need to re-authorize on next manual save
+  if (result === 'permission-denied') {
+    console.log('Auto-save skipped: permission denied. Use Save button to re-authorize.');
+    return;
+  }
+
+  console.warn('Auto-save failed');
 }
 
 /**

@@ -4,6 +4,8 @@
 	import { reviewerStore } from '$lib/client/stores/reviewer.svelte';
 	import {
 		exportAnnotationsAsJson,
+		saveAnnotations,
+		hasSaveLocation,
 		getAnnotationCount,
 		hasRecoverableBackup,
 		getBackupInfo,
@@ -19,6 +21,7 @@
 	} from '$lib/client/stores/annotation-store';
 
 	let annotationCount = $state(0);
+	let saving = $state(false);
 	let exporting = $state(false);
 	let showSettings = $state(false);
 	let autoExportMinutes = $state(30);
@@ -29,6 +32,7 @@
 	let secondsUntilExport = $state<number | null>(null);
 	let importing = $state(false);
 	let fileInput: HTMLInputElement;
+	let saveLocationConfigured = $state(false);
 
 	// Load admin info on mount (for admin mode)
 	onMount(async () => {
@@ -39,6 +43,7 @@
 			annotationCount = await getAnnotationCount();
 			autoExportMinutes = Math.round(getAutoExportInterval() / 60000);
 			lastExport = getLastExportTime();
+			saveLocationConfigured = await hasSaveLocation();
 
 			// Start auto-export timer
 			if (reviewerStore.reviewerName) {
@@ -95,14 +100,28 @@
 		return '.../' + parts.slice(-3).join('/');
 	}
 
+	async function handleSave() {
+		if (!reviewerStore.reviewerName) return;
+		saving = true;
+		try {
+			const success = await saveAnnotations(reviewerStore.reviewerName);
+			if (success) {
+				lastExport = new Date().toISOString();
+				saveLocationConfigured = await hasSaveLocation();
+				// Reset countdown since we just saved
+				resetAutoExportCountdown();
+			}
+		} finally {
+			saving = false;
+		}
+	}
+
 	async function handleExport() {
 		if (!reviewerStore.reviewerName) return;
 		exporting = true;
 		try {
 			await exportAnnotationsAsJson(reviewerStore.reviewerName);
-			lastExport = new Date().toISOString();
-			// Reset countdown since we just exported
-			resetAutoExportCountdown();
+			// Don't reset countdown - export is separate from auto-save
 		} finally {
 			exporting = false;
 		}
@@ -266,7 +285,7 @@
 					onchange={handleFileSelect}
 				/>
 
-				<!-- Auto-export settings with countdown -->
+				<!-- Auto-save settings with countdown -->
 				<div class="flex items-center gap-1">
 					<span class="text-xs text-base-content/50">Auto-save:</span>
 					<select
@@ -279,15 +298,19 @@
 						<option value={30}>30 min</option>
 						<option value={60}>1 hour</option>
 					</select>
-					{#if secondsUntilExport !== null && autoExportMinutes > 0}
+					{#if secondsUntilExport !== null && autoExportMinutes > 0 && saveLocationConfigured}
 						<span class="text-xs text-base-content/40 font-mono">
 							({formatCountdown(secondsUntilExport)})
+						</span>
+					{:else if autoExportMinutes > 0 && !saveLocationConfigured}
+						<span class="text-xs text-warning" title="Click Save to set up auto-save location">
+							(no location)
 						</span>
 					{/if}
 				</div>
 
 				{#if lastExport}
-					<span class="text-xs text-base-content/50" title="Last export: {lastExport}">
+					<span class="text-xs text-base-content/50" title="Last save: {lastExport}">
 						Saved {formatTime(lastExport)}
 					</span>
 				{/if}
@@ -309,12 +332,29 @@
 					Import
 				</button>
 
-				<!-- Export button -->
+				<!-- Save button (silent save to configured location) -->
+				<button
+					class="btn btn-ghost btn-xs"
+					onclick={handleSave}
+					disabled={saving || annotationCount === 0}
+					title={saveLocationConfigured ? "Save to configured location" : "Choose save location"}
+				>
+					{#if saving}
+						<span class="loading loading-spinner loading-xs"></span>
+					{:else}
+						<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+						</svg>
+					{/if}
+					Save
+				</button>
+
+				<!-- Export button (always shows file dialog) -->
 				<button
 					class="btn btn-ghost btn-xs"
 					onclick={handleExport}
 					disabled={exporting || annotationCount === 0}
-					title="Export all annotations as JSON (Save Now)"
+					title="Export to a new file location"
 				>
 					{#if exporting}
 						<span class="loading loading-spinner loading-xs"></span>
@@ -323,7 +363,7 @@
 							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
 						</svg>
 					{/if}
-					Save
+					Export
 				</button>
 			</div>
 		</div>
