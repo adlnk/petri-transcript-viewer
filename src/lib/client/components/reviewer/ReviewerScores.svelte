@@ -50,6 +50,7 @@
   <ReviewerScoreBadge
     score={reviewerScore}
     displayName={displayName}
+    onEdit={() => showEditor = true}
     onRemove={handleRemove}
   />
 {:else if reviewerStore.can('addReviewerScores')}
@@ -74,6 +75,8 @@
     {judgeScore}
     {judgeJustification}
     {subJudgeResults}
+    existingScore={reviewerScore?.score}
+    existingJustification={reviewerScore?.justification}
     onSave={handleSave}
     onCancel={() => showEditor = false}
   />

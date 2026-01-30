@@ -12,7 +12,10 @@
 		stopAutoExport,
 		getAutoExportInterval,
 		setAutoExportInterval,
-		getLastExportTime
+		getLastExportTime,
+		getSecondsUntilNextExport,
+		resetAutoExportCountdown,
+		importAnnotationsFromJson
 	} from '$lib/client/stores/annotation-store';
 
 	let annotationCount = $state(0);
@@ -23,6 +26,9 @@
 	let showRecoveryPrompt = $state(false);
 	let backupInfo = $state<{ timestamp: string; count: number } | null>(null);
 	let recovering = $state(false);
+	let secondsUntilExport = $state<number | null>(null);
+	let importing = $state(false);
+	let fileInput: HTMLInputElement;
 
 	// Load admin info on mount (for admin mode)
 	onMount(async () => {
@@ -64,6 +70,23 @@
 		return () => clearInterval(interval);
 	});
 
+	// Update countdown every second
+	$effect(() => {
+		if (!reviewerStore.isReviewerMode || autoExportMinutes === 0) {
+			secondsUntilExport = null;
+			return;
+		}
+
+		const interval = setInterval(() => {
+			secondsUntilExport = getSecondsUntilNextExport();
+		}, 1000);
+
+		// Initial value
+		secondsUntilExport = getSecondsUntilNextExport();
+
+		return () => clearInterval(interval);
+	});
+
 	// Shorten path for display
 	function shortenPath(path: string | null): string {
 		if (!path) return '';
@@ -78,6 +101,8 @@
 		try {
 			await exportAnnotationsAsJson(reviewerStore.reviewerName);
 			lastExport = new Date().toISOString();
+			// Reset countdown since we just exported
+			resetAutoExportCountdown();
 		} finally {
 			exporting = false;
 		}
@@ -120,6 +145,39 @@
 		if (!isoString) return 'Never';
 		const date = new Date(isoString);
 		return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+	}
+
+	function formatCountdown(seconds: number | null): string {
+		if (seconds === null) return '';
+		const mins = Math.floor(seconds / 60);
+		const secs = seconds % 60;
+		if (mins > 0) {
+			return `${mins}m ${secs}s`;
+		}
+		return `${secs}s`;
+	}
+
+	async function handleImport() {
+		fileInput?.click();
+	}
+
+	async function handleFileSelect(e: Event) {
+		const target = e.target as HTMLInputElement;
+		const file = target.files?.[0];
+		if (!file) return;
+
+		importing = true;
+		try {
+			const count = await importAnnotationsFromJson(file);
+			annotationCount = await getAnnotationCount();
+			alert(`Successfully imported ${count} annotation${count === 1 ? '' : 's'}`);
+		} catch (err: any) {
+			alert(`Import failed: ${err.message}`);
+		} finally {
+			importing = false;
+			// Reset file input so same file can be selected again
+			target.value = '';
+		}
 	}
 </script>
 
@@ -199,7 +257,16 @@
 					</span>
 				{/if}
 
-				<!-- Auto-export settings -->
+				<!-- Hidden file input for import -->
+				<input
+					type="file"
+					accept=".json"
+					class="hidden"
+					bind:this={fileInput}
+					onchange={handleFileSelect}
+				/>
+
+				<!-- Auto-export settings with countdown -->
 				<div class="flex items-center gap-1">
 					<span class="text-xs text-base-content/50">Auto-save:</span>
 					<select
@@ -212,6 +279,11 @@
 						<option value={30}>30 min</option>
 						<option value={60}>1 hour</option>
 					</select>
+					{#if secondsUntilExport !== null && autoExportMinutes > 0}
+						<span class="text-xs text-base-content/40 font-mono">
+							({formatCountdown(secondsUntilExport)})
+						</span>
+					{/if}
 				</div>
 
 				{#if lastExport}
@@ -220,11 +292,29 @@
 					</span>
 				{/if}
 
+				<!-- Import button -->
+				<button
+					class="btn btn-ghost btn-xs"
+					onclick={handleImport}
+					disabled={importing}
+					title="Import annotations from JSON file"
+				>
+					{#if importing}
+						<span class="loading loading-spinner loading-xs"></span>
+					{:else}
+						<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+						</svg>
+					{/if}
+					Import
+				</button>
+
+				<!-- Export button -->
 				<button
 					class="btn btn-ghost btn-xs"
 					onclick={handleExport}
 					disabled={exporting || annotationCount === 0}
-					title="Export all annotations as JSON"
+					title="Export all annotations as JSON (Save Now)"
 				>
 					{#if exporting}
 						<span class="loading loading-spinner loading-xs"></span>
@@ -233,7 +323,7 @@
 							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
 						</svg>
 					{/if}
-					Export
+					Save
 				</button>
 			</div>
 		</div>

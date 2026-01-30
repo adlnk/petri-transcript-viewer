@@ -19,12 +19,14 @@ const BACKUP_KEY = 'transcript-reviewer-backup';
 const BACKUP_TIMESTAMP_KEY = 'transcript-reviewer-backup-timestamp';
 const LAST_EXPORT_KEY = 'transcript-reviewer-last-export';
 const AUTO_EXPORT_INTERVAL_KEY = 'transcript-reviewer-auto-export-interval';
+const AUTO_EXPORT_START_TIME_KEY = 'transcript-reviewer-auto-export-start';
 
 // Default auto-export interval: 30 minutes (in ms)
 const DEFAULT_AUTO_EXPORT_INTERVAL = 30 * 60 * 1000;
 
 let dbInstance: IDBPDatabase | null = null;
 let autoExportTimer: ReturnType<typeof setInterval> | null = null;
+let autoExportStartTime: number | null = null;
 
 /**
  * Get or create the IndexedDB database
@@ -359,17 +361,65 @@ export function startAutoExport(reviewerName?: string): void {
   // Store reviewer name for use in timer callback
   const name = reviewerName || localStorage.getItem('reviewer-name') || 'reviewer';
 
-  autoExportTimer = setInterval(async () => {
-    try {
-      const count = await getAnnotationCount();
-      if (count > 0) {
-        console.log(`Auto-exporting ${count} annotations...`);
-        await performAutoExport(name);
-      }
-    } catch (err) {
-      console.warn('Auto-export failed:', err);
+  // Restore start time from localStorage if available, otherwise start fresh
+  const storedStartTime = localStorage.getItem(AUTO_EXPORT_START_TIME_KEY);
+  if (storedStartTime) {
+    const parsed = parseInt(storedStartTime, 10);
+    // Check if the stored time is still valid (not too old)
+    const elapsed = Date.now() - parsed;
+    if (elapsed < interval) {
+      autoExportStartTime = parsed;
+    } else {
+      // Stored time is stale, start fresh
+      autoExportStartTime = Date.now();
+      localStorage.setItem(AUTO_EXPORT_START_TIME_KEY, String(autoExportStartTime));
     }
-  }, interval);
+  } else {
+    autoExportStartTime = Date.now();
+    localStorage.setItem(AUTO_EXPORT_START_TIME_KEY, String(autoExportStartTime));
+  }
+
+  // Calculate initial delay to sync with the persisted start time
+  const elapsed = Date.now() - autoExportStartTime;
+  const initialDelay = Math.max(0, interval - elapsed);
+
+  // Use setTimeout for the first tick, then setInterval for subsequent ones
+  const startInterval = () => {
+    autoExportTimer = setInterval(async () => {
+      try {
+        const count = await getAnnotationCount();
+        if (count > 0) {
+          console.log(`Auto-exporting ${count} annotations...`);
+          await performAutoExport(name);
+        }
+        // Reset start time for next cycle
+        autoExportStartTime = Date.now();
+        localStorage.setItem(AUTO_EXPORT_START_TIME_KEY, String(autoExportStartTime));
+      } catch (err) {
+        console.warn('Auto-export failed:', err);
+      }
+    }, interval);
+  };
+
+  if (initialDelay > 0) {
+    // Wait for remaining time, then do first export and start regular interval
+    setTimeout(async () => {
+      try {
+        const count = await getAnnotationCount();
+        if (count > 0) {
+          console.log(`Auto-exporting ${count} annotations...`);
+          await performAutoExport(name);
+        }
+        autoExportStartTime = Date.now();
+        localStorage.setItem(AUTO_EXPORT_START_TIME_KEY, String(autoExportStartTime));
+      } catch (err) {
+        console.warn('Auto-export failed:', err);
+      }
+      startInterval();
+    }, initialDelay);
+  } else {
+    startInterval();
+  }
 
   console.log(`Auto-export enabled: every ${Math.round(interval / 60000)} minutes`);
 }
@@ -381,6 +431,8 @@ export function stopAutoExport(): void {
   if (autoExportTimer) {
     clearInterval(autoExportTimer);
     autoExportTimer = null;
+    autoExportStartTime = null;
+    localStorage.removeItem(AUTO_EXPORT_START_TIME_KEY);
   }
 }
 
@@ -389,6 +441,87 @@ export function stopAutoExport(): void {
  */
 export function isAutoExportRunning(): boolean {
   return autoExportTimer !== null;
+}
+
+/**
+ * Get seconds until next auto-export (for countdown display)
+ * Returns null if auto-export is disabled
+ */
+export function getSecondsUntilNextExport(): number | null {
+  const interval = getAutoExportInterval();
+  if (interval <= 0) return null;
+
+  // Try in-memory first, then localStorage
+  let startTime = autoExportStartTime;
+  if (!startTime) {
+    const stored = localStorage.getItem(AUTO_EXPORT_START_TIME_KEY);
+    if (stored) {
+      startTime = parseInt(stored, 10);
+    }
+  }
+
+  if (!startTime) return null;
+
+  const elapsed = Date.now() - startTime;
+  const remaining = Math.max(0, interval - elapsed);
+
+  return Math.ceil(remaining / 1000);
+}
+
+/**
+ * Reset the auto-export countdown (call after manual export)
+ */
+export function resetAutoExportCountdown(): void {
+  autoExportStartTime = Date.now();
+  localStorage.setItem(AUTO_EXPORT_START_TIME_KEY, String(autoExportStartTime));
+}
+
+/**
+ * Manually trigger a backup to localStorage
+ */
+export async function manualBackup(): Promise<void> {
+  await saveBackupToLocalStorage();
+}
+
+/**
+ * Import annotations from a JSON file
+ * Returns the number of annotations imported
+ */
+export async function importAnnotationsFromJson(file: File): Promise<number> {
+  const text = await file.text();
+  const data = JSON.parse(text);
+
+  // Validate structure
+  if (!data.annotations || !Array.isArray(data.annotations)) {
+    throw new Error('Invalid export file: missing annotations array');
+  }
+
+  const db = await getDb();
+  let imported = 0;
+
+  // Get the reviewer name from the export (or from individual annotations)
+  const exportReviewerName = data.reviewerName;
+
+  for (const annotation of data.annotations) {
+    const { filePath, ...rest } = annotation;
+    if (!filePath) continue;
+
+    // Add reviewer name back if it was stripped at export
+    const record = {
+      filePath,
+      reviewerName: rest.reviewerName || exportReviewerName,
+      ...rest,
+      lastModified: rest.lastModified || new Date().toISOString()
+    };
+
+    await db.put(STORE_NAME, record);
+    imported++;
+  }
+
+  // Update backup after import
+  await saveBackupToLocalStorage();
+
+  return imported;
 }
 
 // ============================================================================

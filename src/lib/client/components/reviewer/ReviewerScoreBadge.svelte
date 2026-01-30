@@ -4,10 +4,11 @@
   interface Props {
     score: ReviewerScore;
     displayName?: string;
+    onEdit?: () => void;
     onRemove?: () => void;
   }
 
-  let { score, displayName, onRemove }: Props = $props();
+  let { score, displayName, onEdit, onRemove }: Props = $props();
 
   // Score badge color based on value (same logic as judge scores)
   function getScoreBadgeClass(value: number): string {
@@ -33,6 +34,19 @@
 
   <span class="badge {badgeClass} badge-sm">{name}</span>
   <span class="font-mono text-xs">{score.score}/10</span>
+
+  {#if onEdit}
+    <button
+      type="button"
+      class="hover:bg-base-content/20 rounded-full p-0.5 transition-colors"
+      onclick={onEdit}
+      title="Edit score"
+    >
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+      </svg>
+    </button>
+  {/if}
 
   {#if onRemove}
     <button

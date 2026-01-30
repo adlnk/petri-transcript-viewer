@@ -19,18 +19,22 @@
     judgeScore: number;
     judgeJustification?: string;  // Full coordinator justification text
     subJudgeResults?: SubJudgeResult[];  // Individual sub-judge results
+    existingScore?: number;  // Pre-fill with existing reviewer score
+    existingJustification?: string;  // Pre-fill with existing justification
     onSave: () => void;
     onCancel: () => void;
   }
 
-  let { filePath, dimension, displayName, description, judgeScore, judgeJustification, subJudgeResults, onSave, onCancel }: Props = $props();
+  let { filePath, dimension, displayName, description, judgeScore, judgeJustification, subJudgeResults, existingScore, existingJustification, onSave, onCancel }: Props = $props();
 
-  let score = $state(judgeScore);
-  let justification = $state('');
+  // Pre-fill with existing score if editing, otherwise default to judge score
+  let score = $state(existingScore ?? judgeScore);
+  let justification = $state(existingJustification ?? '');
   let saving = $state(false);
   let error = $state<string | null>(null);
 
   let name = $derived(displayName || dimension.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()));
+  let isEditing = $derived(existingScore !== undefined);
 
   // Markdown renderer for judge instructions
   const md = new MarkdownIt({ html: false, breaks: true, linkify: false });
@@ -120,7 +124,7 @@
 >
   <div class="card bg-base-100 shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
     <div class="card-body">
-      <h2 class="card-title">Add Reviewer Score</h2>
+      <h2 class="card-title">{isEditing ? 'Edit' : 'Add'} Reviewer Score</h2>
 
       <!-- Dimension info -->
       <div class="bg-base-200 rounded-lg p-3 mb-4">
