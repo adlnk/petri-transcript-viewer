@@ -462,3 +462,34 @@ export interface DirectoryInfo {
   transcriptCount: number;
   subdirectoryCount: number;
 }
+
+// Reviewer mode types
+export interface ReviewerScore {
+  dimension: string;
+  score: number;
+  justification?: string;
+  reviewerName: string;
+  timestamp: string;
+}
+
+export type ReviewerIssueFlag =
+  | 'reviewer:inaccurate_citations'
+  | 'reviewer:broken_citations'
+  | 'reviewer:broken_transcript'
+  | 'reviewer:judge_miscalibration';
+
+export interface ReviewerAnnotations {
+  reviewerName: string;
+  reviewerScores?: ReviewerScore[];
+  issueFlags?: ReviewerIssueFlag[];
+  userTags?: string[];
+  userNotes?: string;
+  lastModified: string;
+}
+
+export interface ReviewerAnnotationsExport {
+  exportedAt: string;
+  reviewerName: string;
+  // Annotations without redundant reviewerName (it's at top level)
+  annotations: Array<Omit<ReviewerAnnotations, 'reviewerName'> & { filePath: string }>;
+}

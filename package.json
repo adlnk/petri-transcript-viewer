@@ -39,6 +39,7 @@
 		"dev:runpod": "vite dev --host 0.0.0.0 --port 3000",
 		"build": "vite build",
 		"build:static": "npm run bundle-transcripts && BUILD_MODE=static VITE_STATIC_MODE=true vite build",
+		"build:reviewer": "npm run bundle-transcripts && BUILD_MODE=static VITE_STATIC_MODE=true VITE_REVIEWER_MODE=true vite build",
 		"bundle-transcripts": "tsx scripts/bundle-transcripts.ts",
 		"preview": "vite preview",
 		"prepare": "svelte-kit sync || echo ''",

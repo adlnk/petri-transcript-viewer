@@ -10,10 +10,17 @@
   import { JsonViewer } from '@kaifronsdal/svelte-json-viewer';
   import MarkdownIt from 'markdown-it';
   import { adminMode } from '$lib/client/stores/admin.svelte';
+  import { reviewerStore } from '$lib/client/stores/reviewer.svelte';
+  import { getAnnotation } from '$lib/client/stores/annotation-store';
+  import type { ReviewerAnnotations } from '$lib/shared/types';
   import TagEditor from '$lib/client/components/admin/TagEditor.svelte';
   import TagChip from '$lib/client/components/admin/TagChip.svelte';
   import NotesEditor from '$lib/client/components/admin/NotesEditor.svelte';
   import ShareToggle from '$lib/client/components/admin/ShareToggle.svelte';
+  import ReviewerTagEditor from '$lib/client/components/reviewer/ReviewerTagEditor.svelte';
+  import ReviewerNotesEditor from '$lib/client/components/reviewer/ReviewerNotesEditor.svelte';
+  import ReviewerScores from '$lib/client/components/reviewer/ReviewerScores.svelte';
+  import IssueFlags from '$lib/client/components/reviewer/IssueFlags.svelte';
 
   // Markdown renderer for Character Analysis
   const md = new MarkdownIt({ html: false, breaks: true, linkify: true });
@@ -145,10 +152,45 @@
   let showSharedHistory = $state(true);
   let showSystemPrompt = $state(false);
 
-  // Admin mode state
+  // Admin/Reviewer mode state
   let isEditingTags = $state(false);
   let isEditingNotes = $state(false);
   let isReloading = $state(false);
+
+  // Reviewer annotations (from IndexedDB in reviewer mode)
+  let reviewerAnnotations = $state<ReviewerAnnotations | undefined>(undefined);
+
+  // Load reviewer annotations when in reviewer mode
+  $effect(() => {
+    if (reviewerStore.isReviewerMode && filePath) {
+      getAnnotation(filePath).then(ann => {
+        reviewerAnnotations = ann;
+      });
+    }
+  });
+
+  // Refresh reviewer annotations
+  async function refreshReviewerAnnotations(): Promise<void> {
+    if (reviewerStore.isReviewerMode) {
+      reviewerAnnotations = await getAnnotation(filePath);
+    }
+  }
+
+  // Combined user tags: bundled + reviewer annotations
+  let effectiveUserTags = $derived.by(() => {
+    if (reviewerStore.isReviewerMode && reviewerAnnotations?.userTags) {
+      return reviewerAnnotations.userTags;
+    }
+    return loader.transcript?.userTags || [];
+  });
+
+  // Combined user notes: reviewer annotations take precedence
+  let effectiveUserNotes = $derived.by(() => {
+    if (reviewerStore.isReviewerMode && reviewerAnnotations?.userNotes !== undefined) {
+      return reviewerAnnotations.userNotes;
+    }
+    return loader.transcript?.userNotes || '';
+  });
 
   // Handler for tag/share updates - force reload transcript to show changes
   async function handleMetadataUpdate(): Promise<void> {
@@ -530,17 +572,31 @@
         {#each categorizeScores(loader.transcript?.scores || {}) as { category, label, items }}
           <div class="space-y-2">
             <h4 class="text-sm font-medium text-base-content/70">{label}</h4>
-            <div class="flex flex-wrap gap-2">
+            <div class="flex flex-wrap gap-2 items-center">
               {#each items as [key, value]}
-                <ScoreTooltip
-                  id="score-{key}"
-                  score={value}
-                  scoreName={key}
-                  displayName={dimensionDisplayNames[key]}
-                  description={loader.transcript?.scoreDescriptions?.[key]}
-                  isPetriDefault={PETRI_DEFAULT_SCORES.has(key)}
-                  onClick={handleScoreClick}
-                />
+                <div class="inline-flex items-center gap-1">
+                  <ScoreTooltip
+                    id="score-{key}"
+                    score={value}
+                    scoreName={key}
+                    displayName={dimensionDisplayNames[key]}
+                    description={loader.transcript?.scoreDescriptions?.[key]}
+                    isPetriDefault={PETRI_DEFAULT_SCORES.has(key)}
+                    onClick={handleScoreClick}
+                  />
+                  {#if reviewerStore.can('addReviewerScores')}
+                    <ReviewerScores
+                      filePath={filePath}
+                      dimension={key}
+                      judgeScore={value}
+                      displayName={dimensionDisplayNames[key]}
+                      description={loader.transcript?.scoreDescriptions?.[key]}
+                      judgeJustification={loader.transcript?.justification}
+                      subJudgeResults={loader.transcript?.transcript?.metadata?.judge_output?.sub_judge_results}
+                      onUpdate={refreshReviewerAnnotations}
+                    />
+                  {/if}
+                </div>
               {/each}
             </div>
           </div>
@@ -578,7 +634,7 @@
       <div class="mb-4">
         <div class="flex items-center gap-2 mb-2">
           <h3 class="text-lg font-semibold">Tags</h3>
-          {#if adminMode.isAdminMode && !isEditingTags}
+          {#if (adminMode.isAdminMode || reviewerStore.can('addUserTags')) && !isEditingTags}
             <button
               class="btn btn-ghost btn-xs"
               onclick={() => isEditingTags = true}
@@ -591,29 +647,45 @@
           {/if}
         </div>
 
-        {#if adminMode.isAdminMode && isEditingTags}
-          <!-- Tag Editor (admin mode) - keyed by userTags to force remount with fresh state -->
-          {#key JSON.stringify(loader.transcript?.userTags || [])}
-            <TagEditor
-              filePath={filePath}
-              tags={loader.transcript?.tags || []}
-              userTags={loader.transcript?.userTags || []}
-              onSave={async () => {
-                await handleMetadataUpdate();
-                isEditingTags = false;
-              }}
-              onCancel={() => isEditingTags = false}
-            />
-          {/key}
+        {#if isEditingTags}
+          {#if adminMode.isAdminMode}
+            <!-- Tag Editor (admin mode) - keyed by userTags to force remount with fresh state -->
+            {#key JSON.stringify(loader.transcript?.userTags || [])}
+              <TagEditor
+                filePath={filePath}
+                tags={loader.transcript?.tags || []}
+                userTags={loader.transcript?.userTags || []}
+                onSave={async () => {
+                  await handleMetadataUpdate();
+                  isEditingTags = false;
+                }}
+                onCancel={() => isEditingTags = false}
+              />
+            {/key}
+          {:else if reviewerStore.isReviewerMode}
+            <!-- Tag Editor (reviewer mode) - uses IndexedDB -->
+            {#key JSON.stringify(effectiveUserTags)}
+              <ReviewerTagEditor
+                filePath={filePath}
+                tags={loader.transcript?.tags || []}
+                bundledUserTags={loader.transcript?.userTags || []}
+                onSave={async () => {
+                  await refreshReviewerAnnotations();
+                  isEditingTags = false;
+                }}
+                onCancel={() => isEditingTags = false}
+              />
+            {/key}
+          {/if}
         {:else}
           <!-- Display tags -->
-          {@const allTags = [...(loader.transcript?.tags || []), ...(loader.transcript?.userTags || [])]}
+          {@const allTags = [...(loader.transcript?.tags || []), ...effectiveUserTags]}
           {#if allTags.length > 0}
             <div class="flex flex-wrap gap-2">
               {#each loader.transcript?.tags || [] as tag}
                 <TagChip {tag} />
               {/each}
-              {#each loader.transcript?.userTags || [] as tag}
+              {#each effectiveUserTags as tag}
                 <TagChip {tag} isUserTag={true} />
               {/each}
             </div>
@@ -623,12 +695,12 @@
         {/if}
       </div>
 
-      <!-- Reviewer Notes (admin mode) -->
-      {#if adminMode.isAdminMode || loader.transcript?.userNotes}
+      <!-- Reviewer Notes -->
+      {#if adminMode.isAdminMode || reviewerStore.can('editNotes') || effectiveUserNotes}
         <div class="mb-4">
           <div class="flex items-center gap-2 mb-2">
             <h3 class="text-lg font-semibold">Reviewer Notes</h3>
-            {#if adminMode.isAdminMode && !isEditingNotes}
+            {#if (adminMode.isAdminMode || reviewerStore.can('editNotes')) && !isEditingNotes}
               <button
                 class="btn btn-ghost btn-xs"
                 onclick={() => isEditingNotes = true}
@@ -641,27 +713,52 @@
             {/if}
           </div>
 
-          {#if adminMode.isAdminMode && isEditingNotes}
-            <!-- Notes Editor (admin mode) - keyed by userNotes to force remount with fresh state -->
-            {#key loader.transcript?.userNotes || ''}
-              <NotesEditor
-                filePath={filePath}
-                notes={loader.transcript?.userNotes || ''}
-                onSave={async () => {
-                  await handleMetadataUpdate();
-                  isEditingNotes = false;
-                }}
-                onCancel={() => isEditingNotes = false}
-              />
-            {/key}
-          {:else if loader.transcript?.userNotes}
+          {#if isEditingNotes}
+            {#if adminMode.isAdminMode}
+              <!-- Notes Editor (admin mode) - keyed by userNotes to force remount with fresh state -->
+              {#key loader.transcript?.userNotes || ''}
+                <NotesEditor
+                  filePath={filePath}
+                  notes={loader.transcript?.userNotes || ''}
+                  onSave={async () => {
+                    await handleMetadataUpdate();
+                    isEditingNotes = false;
+                  }}
+                  onCancel={() => isEditingNotes = false}
+                />
+              {/key}
+            {:else if reviewerStore.isReviewerMode}
+              <!-- Notes Editor (reviewer mode) - uses IndexedDB -->
+              {#key effectiveUserNotes}
+                <ReviewerNotesEditor
+                  filePath={filePath}
+                  bundledNotes={loader.transcript?.userNotes || ''}
+                  onSave={async () => {
+                    await refreshReviewerAnnotations();
+                    isEditingNotes = false;
+                  }}
+                  onCancel={() => isEditingNotes = false}
+                />
+              {/key}
+            {/if}
+          {:else if effectiveUserNotes}
             <!-- Display notes -->
             <div class="bg-base-200 p-4 rounded-lg">
-              <p class="text-sm whitespace-pre-wrap">{loader.transcript.userNotes}</p>
+              <p class="text-sm whitespace-pre-wrap">{effectiveUserNotes}</p>
             </div>
           {:else}
             <p class="text-base-content/50 text-sm italic">No notes</p>
           {/if}
+        </div>
+      {/if}
+
+      <!-- Issue Flags (reviewer mode only) -->
+      {#if reviewerStore.can('addIssueFlags')}
+        <div class="mb-4">
+          <IssueFlags
+            filePath={filePath}
+            onUpdate={refreshReviewerAnnotations}
+          />
         </div>
       {/if}
 
