@@ -220,6 +220,36 @@
   let showSystemPrompt = $state(false);
   let showBaselineScores = $state(false);
 
+  // Track which justification category sections are expanded (for programmatic control)
+  let expandedJustificationSections = $state<Set<string>>(new Set());
+
+  function toggleJustificationSection(category: string) {
+    if (expandedJustificationSections.has(category)) {
+      expandedJustificationSections.delete(category);
+    } else {
+      expandedJustificationSections.add(category);
+    }
+    // Trigger reactivity
+    expandedJustificationSections = new Set(expandedJustificationSections);
+  }
+
+  function expandJustificationSection(category: string) {
+    if (!expandedJustificationSections.has(category)) {
+      expandedJustificationSections.add(category);
+      expandedJustificationSections = new Set(expandedJustificationSections);
+    }
+  }
+
+  // Find which category a dimension belongs to
+  function findCategoryForDimension(dimension: string): string | null {
+    for (const [category, config] of Object.entries(SCORE_CATEGORIES)) {
+      if (config.scores.includes(dimension)) {
+        return category;
+      }
+    }
+    return 'other';
+  }
+
   // Sub-judge results (from independent scoring mode)
   let subJudgeResults = $derived(
     fullTranscript?.transcript?.metadata?.judge_output?.sub_judge_results
@@ -437,23 +467,44 @@
 
   // Handle score click - scroll to the score mention in justification
   function handleScoreClick(scoreName: string) {
-    // Look for the score anchor in the justification
-    const scoreAnchor = document.getElementById(`justification-score-${scoreName}`);
-    if (scoreAnchor) {
-      scoreAnchor.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      // Highlight briefly
-      scoreAnchor.classList.add('ring-2', 'ring-primary', 'ring-offset-2');
-      setTimeout(() => {
-        scoreAnchor.classList.remove('ring-2', 'ring-primary', 'ring-offset-2');
-      }, 2000);
-      return;
+    // If we have sub-judge results, expand the relevant category section first
+    if (hasSubJudgeResults) {
+      const category = findCategoryForDimension(scoreName);
+      if (category) {
+        expandJustificationSection(category);
+      }
     }
 
-    // Fallback: scroll to justification section
-    const justificationEl = document.getElementById('judge-justification');
-    if (justificationEl) {
-      justificationEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
+    // Small delay to allow section to expand before scrolling
+    setTimeout(() => {
+      // Look for the dimension justification item
+      const dimensionItem = document.getElementById(`dimension-justification-${scoreName}`);
+      if (dimensionItem) {
+        dimensionItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        dimensionItem.classList.add('ring-2', 'ring-primary', 'ring-offset-2');
+        setTimeout(() => {
+          dimensionItem.classList.remove('ring-2', 'ring-primary', 'ring-offset-2');
+        }, 2000);
+        return;
+      }
+
+      // Fallback: look for the score anchor in prose justification
+      const scoreAnchor = document.getElementById(`justification-score-${scoreName}`);
+      if (scoreAnchor) {
+        scoreAnchor.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        scoreAnchor.classList.add('ring-2', 'ring-primary', 'ring-offset-2');
+        setTimeout(() => {
+          scoreAnchor.classList.remove('ring-2', 'ring-primary', 'ring-offset-2');
+        }, 2000);
+        return;
+      }
+
+      // Final fallback: scroll to justification section
+      const justificationEl = document.getElementById('judge-justification');
+      if (justificationEl) {
+        justificationEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }, 50);
   }
 
   // Get score badge color class based on value and dimension type
@@ -878,8 +929,12 @@
           {:else}
             <!-- Grouped by category -->
             {#each categorizedSubJudgeResults as { category, label, items }}
-              <div class="collapse collapse-arrow bg-base-200 mb-2">
-                <input type="checkbox" checked />
+              <div class="collapse collapse-arrow bg-base-200 mb-2" id="justification-category-{category}">
+                <input
+                  type="checkbox"
+                  checked={expandedJustificationSections.has(category)}
+                  onchange={() => toggleJustificationSection(category)}
+                />
                 <div class="collapse-title font-medium">{label} ({items.length})</div>
                 <div class="collapse-content space-y-3 pt-2">
                   {#each items as result}
@@ -927,7 +982,7 @@
 {#snippet viewControls()}
   <div class="card bg-base-100 shadow-sm max-w-6xl mx-auto">
     <div class="card-body">
-      <h2 class="text-xl font-bold mb-4">Conversation</h2>
+      <h2 id="conversation-section" class="text-xl font-bold mb-4">Conversation</h2>
       
 
       
@@ -1031,7 +1086,8 @@
 
 <!-- Dimension Justification Item Snippet -->
 {#snippet dimensionJustificationItem(result: SubJudgeResult)}
-  <div class="border-l-2 border-base-300 pl-3 py-2">
+  {@const scoringCriteria = loader.transcript?.scoreDescriptions?.[result.dimension]}
+  <div id="dimension-justification-{result.dimension}" class="border-l-2 border-base-300 pl-3 py-2">
     <!-- Score badge with dimension name -->
     <div class="flex items-center gap-2 mb-1">
       <span class={`badge ${getScoreBadgeClass(result.score, result.dimension)}`}>
@@ -1074,6 +1130,18 @@
           </div>
         {/each}
       </div>
+    {/if}
+
+    <!-- Scoring Criteria (expandable) -->
+    {#if scoringCriteria}
+      <details class="mt-2">
+        <summary class="text-xs text-base-content/50 hover:text-base-content/70 cursor-pointer select-none">
+          Scoring criteria
+        </summary>
+        <div class="mt-1 p-2 bg-base-300/30 rounded text-xs text-base-content/70 whitespace-pre-wrap max-h-48 overflow-y-auto">
+          {scoringCriteria}
+        </div>
+      </details>
     {/if}
   </div>
 {/snippet}

@@ -275,6 +275,7 @@
     >
       {@render headerBadges()}
       <div class="flex items-center gap-2">
+        {@render backToTopButton()}
         {@render expandButton()}
         {@render copyMenu()}
       </div>
@@ -307,6 +308,26 @@
       <span class="badge badge-neutral badge-xs">SHARED</span>
     {/if} -->
   </div>
+{/snippet}
+
+<!-- Back to Top Button Snippet -->
+{#snippet backToTopButton()}
+  <button
+    type="button"
+    class="btn btn-ghost btn-xs btn-square opacity-40 hover:opacity-100"
+    title="Back to conversation top"
+    onclick={(e) => {
+      e.stopPropagation();
+      const conversationSection = document.getElementById('conversation-section');
+      if (conversationSection) {
+        conversationSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }}
+  >
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3 h-3">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 10.5 12 3m0 0 7.5 7.5M12 3v18" />
+    </svg>
+  </button>
 {/snippet}
 
 <!-- Expand Button Snippet -->
