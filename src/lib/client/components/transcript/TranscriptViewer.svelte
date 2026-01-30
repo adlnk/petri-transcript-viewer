@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { Message } from '$lib/shared/types';
+  import { isTranscriptDisplayFull } from '$lib/shared/types';
   import type { ConversationColumn } from '$lib/shared/transcript-parser';
   import { createTranscriptLoader } from '$lib/client/utils/transcript.svelte';
   import { invalidateListDataCache, loadDimensionDisplayNames } from '$lib/shared/services/transcript-data.svelte';
@@ -136,6 +137,10 @@
   // Load transcript using our new loader
   const loader = createTranscriptLoader(filePath);
 
+  // Helper to access full transcript data (type-narrowed)
+  let fullTranscript = $derived(isTranscriptDisplayFull(loader.transcript) ? loader.transcript : null);
+  let transcriptEvents = $derived(fullTranscript?.transcript.events);
+
   // Dimension display names (loaded from static file)
   let dimensionDisplayNames = $state<Record<string, string>>({});
 
@@ -209,20 +214,22 @@
 
   // Parse conversation columns from loaded transcript
   let conversationColumns = $derived.by(() => {
-    if (!loader.transcript?.transcript?.events || selectedView === 'raw') {
+    if (!isTranscriptDisplayFull(loader.transcript) || selectedView === 'raw') {
       return [];
     }
-    
-    return parseTranscriptEvents(loader.transcript.transcript.events, selectedView, showApiFailures);
+    const events = loader.transcript.transcript.events;
+    if (!events) return [];
+    return parseTranscriptEvents(events, selectedView, showApiFailures);
   });
 
   // Extract available views from loaded transcript
   let availableViews = $derived.by(() => {
-    if (!loader.transcript?.transcript?.events) {
+    if (!isTranscriptDisplayFull(loader.transcript)) {
       return ['combined'];
     }
-    
-    return extractAvailableViews(loader.transcript.transcript.events);
+    const events = loader.transcript.transcript.events;
+    if (!events) return ['combined'];
+    return extractAvailableViews(events);
   });
 
   // Auto-load transcript on mount
@@ -244,10 +251,11 @@
 
   // Copy action handler using the utilities
   async function onCopyAction(action: CopyAction) {
+    const events = isTranscriptDisplayFull(loader.transcript) ? loader.transcript.transcript.events : undefined;
     const result = await handleCopyAction(
-      action, 
-      conversationColumns, 
-      loader.transcript?.transcript.events
+      action,
+      conversationColumns,
+      events
     );
     
     // TODO: Add toast notification system
@@ -445,7 +453,8 @@
 
   // Extract the auditor seed prompt from transcript events
   let auditorSeedPrompt = $derived.by(() => {
-    const events = loader.transcript?.transcript?.events;
+    if (!isTranscriptDisplayFull(loader.transcript)) return null;
+    const events = loader.transcript.transcript.events;
     if (!events || !Array.isArray(events)) return null;
 
     // Look for the first decision_event which contains the auditor's initial instruction
@@ -592,7 +601,7 @@
                       displayName={dimensionDisplayNames[key]}
                       description={loader.transcript?.scoreDescriptions?.[key]}
                       judgeJustification={loader.transcript?.justification}
-                      subJudgeResults={loader.transcript?.transcript?.metadata?.judge_output?.sub_judge_results}
+                      subJudgeResults={fullTranscript?.transcript?.metadata?.judge_output?.sub_judge_results}
                       onUpdate={refreshReviewerAnnotations}
                     />
                   {/if}
@@ -864,12 +873,12 @@
       <div class="flex items-center justify-between mb-4">
         <h3 class="font-semibold text-lg">Raw Event Data</h3>
         <span class="text-sm text-gray-600 dark:text-gray-400">
-          {loader.transcript?.transcript?.events?.length || 0} events
+          {transcriptEvents?.length || 0} events
         </span>
       </div>
       <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded p-4">
         <pre class="text-xs overflow-auto min-h-[70vh] whitespace-pre-wrap font-mono">
-          {JSON.stringify(loader.transcript?.transcript, null, 2)}
+          {JSON.stringify(fullTranscript?.transcript, null, 2)}
         </pre>
       </div>
     </div>

@@ -336,6 +336,10 @@ export interface TranscriptDisplayFull extends TranscriptDisplayMeta {
 // Backward-compatible alias used across the app
 export type TranscriptDisplay = TranscriptDisplayMeta | TranscriptDisplayFull;
 
+// Type guard to check if a TranscriptDisplay has the full transcript data
+export const isTranscriptDisplayFull = (t: TranscriptDisplay | null | undefined): t is TranscriptDisplayFull =>
+  t !== null && t !== undefined && 'transcript' in t && t.transcript !== undefined;
+
 // Filter and view state types
 export interface FilterState {
   filterExpression: string;

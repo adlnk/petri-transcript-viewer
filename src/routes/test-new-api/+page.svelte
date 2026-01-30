@@ -1,5 +1,6 @@
 <script lang="ts">
   import { createTranscriptLoader } from '$lib/client/utils/transcript.svelte';
+  import { isTranscriptDisplayFull } from '$lib/shared/types';
   
   const testFilePath = 'transcripts/test/transcript_2025-07-30_19-19-00_af5163dd.json';
   const loader = createTranscriptLoader(testFilePath);
@@ -96,7 +97,7 @@
           <li><strong>Split:</strong> {loader.transcript.split}</li>
           <li><strong>Summary:</strong> {loader.transcript.summary}</li>
           <li><strong>Concerning Score:</strong> {loader.transcript.concerningScore}</li>
-          <li><strong>Event Count:</strong> {loader.transcript.transcript.events.length}</li>
+          <li><strong>Event Count:</strong> {isTranscriptDisplayFull(loader.transcript) ? loader.transcript.transcript.events?.length ?? 0 : 'N/A'}</li>
         </ul>
       </div>
     {/if}

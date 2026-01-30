@@ -90,7 +90,7 @@
 		const tagSet = new Set<string>();
 		allTranscripts.forEach(t => {
 			if (Array.isArray(t.tags)) {
-				t.tags.forEach(tag => {
+				t.tags.forEach((tag: string) => {
 					if (tag && typeof tag === 'string') tagSet.add(tag);
 				});
 			}

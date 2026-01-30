@@ -1,4 +1,5 @@
-import type { TranscriptMetadata, TranscriptDisplay } from '$lib/shared/types';
+import type { TranscriptMetadata, TranscriptDisplay, TranscriptDisplayFull } from '$lib/shared/types';
+import { isTranscriptDisplayFull } from '$lib/shared/types';
 import { base } from '$app/paths';
 import { debugLog } from '$lib/client/utils/debug';
 
@@ -6,9 +7,9 @@ import { debugLog } from '$lib/client/utils/debug';
 const isStaticMode = import.meta.env.VITE_STATIC_MODE === 'true';
 
 // Cache for individually loaded transcripts (lazy loading)
-const transcriptCache = new Map<string, TranscriptDisplay>();
+const transcriptCache = new Map<string, TranscriptDisplayFull>();
 
-async function fetchIndividualTranscript(filePath: string): Promise<TranscriptDisplay> {
+async function fetchIndividualTranscript(filePath: string): Promise<TranscriptDisplayFull> {
   // Check cache first
   const cached = transcriptCache.get(filePath);
   if (cached) return cached;
@@ -33,8 +34,8 @@ async function fetchIndividualTranscript(filePath: string): Promise<TranscriptDi
   return transcriptDisplay;
 }
 
-// Transform raw transcript JSON to TranscriptDisplay format (mirrors bundle-transcripts.ts logic)
-function createTranscriptDisplayFromRaw(transcript: any, filePath: string): TranscriptDisplay {
+// Transform raw transcript JSON to TranscriptDisplayFull format (mirrors bundle-transcripts.ts logic)
+function createTranscriptDisplayFromRaw(transcript: any, filePath: string): TranscriptDisplayFull {
   const targetModel = extractTargetModel(transcript);
   const pathParts = filePath.split('/');
   const behaviorDir = pathParts.length > 1 ? pathParts[pathParts.length - 2] : '';
@@ -232,7 +233,7 @@ export function createTranscriptLoader(filePath: string) {
 
         // Extract display metadata from the TranscriptDisplayFull object
         // (NOT from transcript.transcript.metadata which is raw snake_case)
-        if (transcript) {
+        if (isTranscriptDisplayFull(transcript)) {
           const { transcript: _raw, ...displayMeta } = transcript;
           metadata = displayMeta as TranscriptMetadata;
         }
