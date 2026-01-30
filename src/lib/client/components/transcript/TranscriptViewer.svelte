@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { Message } from '$lib/shared/types';
+  import type { Message, SubJudgeResult, SubJudgeCitation } from '$lib/shared/types';
   import { isTranscriptDisplayFull } from '$lib/shared/types';
   import type { ConversationColumn } from '$lib/shared/transcript-parser';
   import { createTranscriptLoader } from '$lib/client/utils/transcript.svelte';
@@ -128,6 +128,68 @@
     return result;
   }
 
+  // Filter sub-judge results to non-baseline scores (scores > threshold)
+  function getSignificantSubJudgeResults(
+    results: SubJudgeResult[] | undefined,
+    threshold: number = 1
+  ): SubJudgeResult[] {
+    if (!results) return [];
+    return results.filter(r => r.score > threshold && r.note);
+  }
+
+  // Group sub-judge results by category (reuses SCORE_CATEGORIES)
+  function categorizeSubJudgeResults(results: SubJudgeResult[]): { category: string; label: string; items: SubJudgeResult[] }[] {
+    const allCategorized = new Set<string>();
+    const resultGroups: { category: string; label: string; items: SubJudgeResult[] }[] = [];
+
+    // Create a map for quick lookup
+    const resultsByDimension = new Map<string, SubJudgeResult>();
+    for (const r of results) {
+      resultsByDimension.set(r.dimension, r);
+    }
+
+    // Process each category in order
+    for (const [category, config] of Object.entries(SCORE_CATEGORIES)) {
+      const items: SubJudgeResult[] = [];
+      for (const scoreName of config.scores) {
+        const result = resultsByDimension.get(scoreName);
+        if (result) {
+          items.push(result);
+          allCategorized.add(scoreName);
+        }
+      }
+      if (items.length > 0) {
+        resultGroups.push({ category, label: config.label, items });
+      }
+    }
+
+    // Collect uncategorized into "Other"
+    const otherItems: SubJudgeResult[] = [];
+    for (const result of results) {
+      if (!allCategorized.has(result.dimension)) {
+        otherItems.push(result);
+      }
+    }
+    if (otherItems.length > 0) {
+      resultGroups.push({ category: 'other', label: 'Other', items: otherItems });
+    }
+
+    return resultGroups;
+  }
+
+  // Handle citation click from sub-judge results (uses message_id)
+  function handleSubJudgeCitationClick(messageId: string) {
+    const messageEl = document.querySelector(`[data-message-id="${messageId}"]`);
+    if (messageEl) {
+      messageEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      // Highlight briefly
+      messageEl.classList.add('ring-2', 'ring-primary', 'ring-offset-2');
+      setTimeout(() => {
+        messageEl.classList.remove('ring-2', 'ring-primary', 'ring-offset-2');
+      }, 2000);
+    }
+  }
+
   interface Props {
     filePath: string;
   }
@@ -156,6 +218,23 @@
   let showApiFailures = $state(false);
   let showSharedHistory = $state(true);
   let showSystemPrompt = $state(false);
+  let showBaselineScores = $state(false);
+
+  // Sub-judge results (from independent scoring mode)
+  let subJudgeResults = $derived(
+    fullTranscript?.transcript?.metadata?.judge_output?.sub_judge_results
+  );
+
+  let hasSubJudgeResults = $derived(
+    subJudgeResults && subJudgeResults.length > 0 && subJudgeResults.some(r => r.note)
+  );
+
+  let filteredSubJudgeResults = $derived.by(() => {
+    const threshold = showBaselineScores ? 0 : 1;
+    return getSignificantSubJudgeResults(subJudgeResults, threshold);
+  });
+
+  let categorizedSubJudgeResults = $derived(categorizeSubJudgeResults(filteredSubJudgeResults));
 
   // Admin/Reviewer mode state
   let isEditingTags = $state(false);
@@ -779,12 +858,41 @@
         <p class="text-sm leading-relaxed whitespace-pre-wrap">{@html renderCitations(loader.transcript?.judgeSummary)}</p>
       </div>
 
-      <!-- Judge Justification -->
+      <!-- Dimension Justifications / Judge Justification -->
       <!-- svelte-ignore a11y_click_events_have_key_events -->
       <!-- svelte-ignore a11y_no_static_element_interactions -->
       <div id="judge-justification" class="mb-4" onclick={handleCitationClick}>
-        <h3 class="text-lg font-semibold mb-2">Judge Justification</h3>
-        <p class="text-sm leading-relaxed whitespace-pre-wrap">{@html renderJustificationWithScores(loader.transcript?.justification, loader.transcript?.scores || {})}</p>
+        <h3 class="text-lg font-semibold mb-2">
+          {hasSubJudgeResults ? 'Dimension Justifications' : 'Judge Justification'}
+        </h3>
+
+        {#if hasSubJudgeResults}
+          <!-- Sub-judge results view -->
+          <label class="flex items-center gap-2 mb-4 cursor-pointer">
+            <input type="checkbox" class="toggle toggle-xs" bind:checked={showBaselineScores} />
+            <span class="text-sm text-base-content/70">Show baseline scores (=1)</span>
+          </label>
+
+          {#if filteredSubJudgeResults.length === 0}
+            <p class="text-sm text-base-content/60 italic">All dimensions scored at baseline (1). Toggle above to show details.</p>
+          {:else}
+            <!-- Grouped by category -->
+            {#each categorizedSubJudgeResults as { category, label, items }}
+              <div class="collapse collapse-arrow bg-base-200 mb-2">
+                <input type="checkbox" checked />
+                <div class="collapse-title font-medium">{label} ({items.length})</div>
+                <div class="collapse-content space-y-3 pt-2">
+                  {#each items as result}
+                    {@render dimensionJustificationItem(result)}
+                  {/each}
+                </div>
+              </div>
+            {/each}
+          {/if}
+        {:else}
+          <!-- Fallback: prose justification from coordinator -->
+          <p class="text-sm leading-relaxed whitespace-pre-wrap">{@html renderJustificationWithScores(loader.transcript?.justification, loader.transcript?.scores || {})}</p>
+        {/if}
       </div>
 
       <!-- Character Analysis (from independent scoring mode) -->
@@ -919,6 +1027,55 @@
       </div>
     </div>
   {/if}
+{/snippet}
+
+<!-- Dimension Justification Item Snippet -->
+{#snippet dimensionJustificationItem(result: SubJudgeResult)}
+  <div class="border-l-2 border-base-300 pl-3 py-2">
+    <!-- Score badge with dimension name -->
+    <div class="flex items-center gap-2 mb-1">
+      <span class={`badge ${getScoreBadgeClass(result.score, result.dimension)}`}>
+        {dimensionDisplayNames[result.dimension] || result.dimension.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}: {result.score}/10
+      </span>
+      <!-- Link to score in header -->
+      <a
+        href="#score-{result.dimension}"
+        class="text-primary hover:underline text-xs"
+        onclick={(e) => {
+          e.preventDefault();
+          const el = document.getElementById(`score-${result.dimension}`);
+          if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            el.classList.add('ring-2', 'ring-primary', 'ring-offset-2');
+            setTimeout(() => el.classList.remove('ring-2', 'ring-primary', 'ring-offset-2'), 2000);
+          }
+        }}
+      >↑</a>
+    </div>
+
+    <!-- Note/justification -->
+    {#if result.note}
+      <p class="text-sm text-base-content/80 mb-2">{result.note}</p>
+    {/if}
+
+    <!-- Citations -->
+    {#if result.citations && result.citations.length > 0}
+      <div class="space-y-1 mt-2">
+        {#each result.citations as citation}
+          <div class="text-xs flex gap-2 items-start bg-base-300/50 rounded px-2 py-1">
+            <button
+              class="font-mono text-primary hover:underline shrink-0"
+              onclick={() => {
+                const messageId = citation.parts[0]?.message_id;
+                if (messageId) handleSubJudgeCitationClick(messageId);
+              }}
+            >[{citation.index}]</button>
+            <span class="text-base-content/70">{citation.description}</span>
+          </div>
+        {/each}
+      </div>
+    {/if}
+  </div>
 {/snippet}
 
 <!-- Conversation Column Snippet -->

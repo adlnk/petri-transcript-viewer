@@ -251,6 +251,30 @@ export interface DecisionEvent extends BaseEvent {
 
 export type Events = TranscriptEvent | ToolCreationEvent | InfoEvent | DecisionEvent;
 
+// Sub-judge citation structure (from independent scoring mode)
+export interface SubJudgeCitationPart {
+  message_id: string;
+  quoted_text: string;
+  position: [number, number];
+  tool_call_id?: string | null;
+  tool_arg?: string | null;
+}
+
+export interface SubJudgeCitation {
+  parts: SubJudgeCitationPart[];
+  description: string;
+  index: number;
+}
+
+// Individual sub-judge result (from independent scoring mode)
+export interface SubJudgeResult {
+  dimension: string;
+  score: number;
+  note?: string;
+  citations?: SubJudgeCitation[];
+  response?: string;
+}
+
 export interface JudgeOutput {
   response: string;
   summary: string;
@@ -262,7 +286,7 @@ export interface JudgeOutput {
   character_analysis?: string;
   character_analysis_highlights?: any[];
   // Sub-judge results (from independent scoring mode)
-  sub_judge_results?: any[];
+  sub_judge_results?: SubJudgeResult[];
 }
 
 // Processing metadata (moved from tags)
