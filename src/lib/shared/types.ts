@@ -74,6 +74,7 @@ export interface ToolCall {
   parse_error?: ToolCallError | null;
   view?: ToolCallContent | null;
   type?: string | null;
+  render?: any;  // Runtime-added property, stripped when copying
 }
 
 // Base message interface with common fields
@@ -253,6 +254,7 @@ export type Events = TranscriptEvent | ToolCreationEvent | InfoEvent | DecisionE
 export interface JudgeOutput {
   response: string;
   summary: string;
+  compact_summary?: string;
   justification?: string;
   scores: Record<string, number>;
   score_descriptions?: Record<string, string>;

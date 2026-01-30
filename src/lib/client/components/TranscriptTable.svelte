@@ -479,7 +479,8 @@
                       <!-- Select all checkbox for admin mode -->
                       {@const allPaths = table.getRowModel().rows
                         .filter(r => r.original.type === 'transcript' && r.original.originalTranscript?._filePath)
-                        .map(r => r.original.originalTranscript!._filePath)}
+                        .map(r => r.original.originalTranscript?._filePath)
+                        .filter((p): p is string => typeof p === 'string')}
                       {@const allSelected = allPaths.length > 0 && allPaths.every(p => selection.isSelected(p))}
                       {@const someSelected = allPaths.some(p => selection.isSelected(p))}
                       <div class="flex items-center justify-center h-full w-full">

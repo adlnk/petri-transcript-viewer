@@ -132,9 +132,9 @@ export function createTranscriptLoader(filePath: string) {
       if (isStaticMode) {
         const transcriptData = await fetchIndividualTranscript(filePath);
 
-        // Extract metadata from the full transcript data
+        // Extract metadata from the full transcript data (display meta, cast for compat)
         const { transcript: _fullTranscript, ...meta } = transcriptData;
-        metadata = meta as TranscriptMetadata;
+        metadata = meta as unknown as TranscriptMetadata;
         return metadata;
       }
 
@@ -235,7 +235,7 @@ export function createTranscriptLoader(filePath: string) {
         // (NOT from transcript.transcript.metadata which is raw snake_case)
         if (isTranscriptDisplayFull(transcript)) {
           const { transcript: _raw, ...displayMeta } = transcript;
-          metadata = displayMeta as TranscriptMetadata;
+          metadata = displayMeta as unknown as TranscriptMetadata;
         }
 
         return transcript;

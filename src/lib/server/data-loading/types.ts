@@ -1,4 +1,4 @@
-import type { TranscriptDisplay } from '$lib/shared/types';
+import type { TranscriptDisplay, DirectoryInfo } from '$lib/shared/types';
 
 export interface LoadingError {
   type: 'file_not_found' | 'permission_denied' | 'parse_error' | 'validation_error' | 'unknown_error';
