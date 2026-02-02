@@ -282,6 +282,8 @@ export interface JudgeOutput {
   justification?: string;
   scores: Record<string, number>;
   score_descriptions?: Record<string, string>;
+  // Coordinator-level citations (highlights)
+  highlights?: SubJudgeCitation[];
   // Character analysis (from independent scoring mode)
   character_analysis?: string;
   character_analysis_highlights?: any[];
@@ -341,6 +343,7 @@ export interface TranscriptDisplayMeta {
   judgeSummary?: string;      // Removed from list responses for payload optimization
   justification?: string;     // Removed from list responses for payload optimization
   characterAnalysis?: string; // Removed from list responses for payload optimization
+  highlights?: SubJudgeCitation[];  // Coordinator-level citations for tooltip display
   tags?: string[];
   userTags?: string[];         // Manually added tags (admin mode)
   userNotes?: string;          // Reviewer notes (admin mode)

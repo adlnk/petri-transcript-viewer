@@ -26,6 +26,13 @@
   // Markdown renderer for Character Analysis
   const md = new MarkdownIt({ html: false, breaks: true, linkify: true });
 
+  // Rich citation tooltip state
+  let tooltipVisible = $state(false);
+  let tooltipContent = $state<{ description: string; quote: string } | null>(null);
+  let tooltipPosition = $state({ x: 0, y: 0 });
+  let tooltipElement = $state<HTMLDivElement | null>(null);
+  let tooltipBelow = $state(false);
+
   // Score categories for organized display
   const SCORE_CATEGORIES = {
     key: {
@@ -398,7 +405,87 @@
       .replace(/'/g, '&#039;');
   }
 
-  // Render citations like [1], [2], [2,3,11], [3-5] as clickable links
+  // Get tooltip content for a citation from highlights
+  function getCitationTooltipContent(citationNum: number): { description: string; quote: string } | null {
+    const highlights = loader.transcript?.highlights || [];
+    const highlight = highlights.find(h => h.index === citationNum);
+    if (!highlight) return null;
+
+    const quote = highlight.parts?.[0]?.quoted_text || '';
+    return {
+      description: highlight.description || '',
+      quote: quote.length > 400 ? quote.slice(0, 400) + '...' : quote,
+    };
+  }
+
+  // Get simple tooltip string for title attribute
+  function getCitationTooltip(citationNum: number): string | null {
+    const content = getCitationTooltipContent(citationNum);
+    if (!content) return null;
+    const quote = content.quote ? ` "${content.quote}"` : '';
+    return `${content.description}${quote}`;
+  }
+
+  // Show rich tooltip near target element
+  function showTooltip(target: HTMLElement, citationNum: number) {
+    const content = getCitationTooltipContent(citationNum);
+    if (!content) return;
+
+    const rect = target.getBoundingClientRect();
+    tooltipContent = content;
+
+    // Check if tooltip would go off the top of the screen
+    const estimatedHeight = 100;
+    tooltipBelow = rect.top < estimatedHeight + 20;
+
+    tooltipPosition = {
+      x: Math.min(Math.max(rect.left + rect.width / 2, 180), window.innerWidth - 180),
+      y: tooltipBelow ? rect.bottom : rect.top
+    };
+    tooltipVisible = true;
+  }
+
+  // Hide rich tooltip
+  function hideTooltip() {
+    tooltipVisible = false;
+  }
+
+  // Track which elements have tooltip listeners attached
+  const tooltipAttachedElements = new WeakSet<HTMLElement>();
+
+  // Attach tooltip listeners to citation links after render
+  $effect(() => {
+    // Re-run when transcript or highlights change
+    const _ = loader.transcript?.highlights;
+
+    // Small delay to ensure DOM is updated
+    const timeoutId = setTimeout(() => {
+      const citationLinks = document.querySelectorAll('.citation-link[data-citation]');
+      citationLinks.forEach((link) => {
+        const el = link as HTMLElement;
+
+        // Skip if already has listeners
+        if (tooltipAttachedElements.has(el)) return;
+        tooltipAttachedElements.add(el);
+
+        // Remove title attribute since we have rich tooltips
+        el.removeAttribute('title');
+
+        // Add hover listeners
+        el.addEventListener('mouseenter', () => {
+          const citationNum = parseInt(el.getAttribute('data-citation') || '0', 10);
+          if (citationNum > 0) {
+            showTooltip(el, citationNum);
+          }
+        });
+        el.addEventListener('mouseleave', hideTooltip);
+      });
+    }, 100);
+
+    return () => clearTimeout(timeoutId);
+  });
+
+  // Render citations like [1], [2], [2,3,11], [3-5] as clickable links with tooltips
   function renderCitations(text: string | null | undefined): string {
     if (!text) return '';
     const escaped = escapeHtml(text);
@@ -445,21 +532,51 @@
     });
   }
 
-  // Handle citation click - scroll to message
+  // Handle citation click - scroll to cited message
   function handleCitationClick(event: MouseEvent) {
     const target = event.target as HTMLElement;
     if (target.classList.contains('citation-link')) {
       event.preventDefault();
-      const citationNum = target.getAttribute('data-citation');
-      if (citationNum) {
-        const messageEl = document.querySelector(`[data-message-index="${citationNum}"]`);
-        if (messageEl) {
-          messageEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          // Highlight briefly
-          messageEl.classList.add('ring-2', 'ring-primary', 'ring-offset-2');
+      hideTooltip(); // Hide tooltip on click
+      const citationNumStr = target.getAttribute('data-citation');
+      if (citationNumStr) {
+        const citationNum = parseInt(citationNumStr, 10);
+        // Look up the highlight to get the actual message reference
+        const highlights = loader.transcript?.highlights || [];
+        const highlight = highlights.find(h => h.index === citationNum);
+
+        const scrollToAndHighlight = (el: Element) => {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          el.classList.add('ring-2', 'ring-primary', 'ring-offset-2');
           setTimeout(() => {
-            messageEl.classList.remove('ring-2', 'ring-primary', 'ring-offset-2');
+            el.classList.remove('ring-2', 'ring-primary', 'ring-offset-2');
           }, 2000);
+        };
+
+        let messageEl: Element | null = null;
+        const part = highlight?.parts?.[0];
+
+        // Try message_id first
+        if (part?.message_id) {
+          messageEl = document.querySelector(`[data-message-id="${part.message_id}"]`);
+        }
+
+        // If not found, search by quoted text content (with whitespace normalization)
+        if (!messageEl && part?.quoted_text) {
+          const normalize = (s: string) => s.replace(/\s+/g, ' ').trim();
+          const searchText = normalize(part.quoted_text.slice(0, 100)); // Use first 100 chars
+          const messageCards = document.querySelectorAll('[data-message-id]');
+          for (const card of messageCards) {
+            const cardText = normalize(card.textContent || '');
+            if (cardText.includes(searchText)) {
+              messageEl = card;
+              break;
+            }
+          }
+        }
+
+        if (messageEl) {
+          scrollToAndHighlight(messageEl);
         }
       }
     }
@@ -636,6 +753,32 @@
 </script>
 
 <div class="w-full">
+  <!-- Rich Citation Tooltip -->
+  {#if tooltipVisible && tooltipContent}
+    <div
+      bind:this={tooltipElement}
+      class="fixed z-50 max-w-sm pointer-events-none"
+      style="left: {tooltipPosition.x}px; top: {tooltipPosition.y}px; transform: translate(-50%, {tooltipBelow ? '8px' : 'calc(-100% - 8px)'});"
+    >
+      <div class="bg-base-300 text-base-content shadow-xl rounded-lg p-3 border border-base-content/20">
+        <p class="text-sm font-medium mb-1">{tooltipContent.description}</p>
+        {#if tooltipContent.quote}
+          <p class="text-xs text-base-content/70 italic border-l-2 border-primary pl-2">
+            "{tooltipContent.quote}"
+          </p>
+        {/if}
+      </div>
+      <!-- Arrow -->
+      {#if tooltipBelow}
+        <!-- Arrow pointing up (tooltip is below target) -->
+        <div class="absolute left-1/2 -translate-x-1/2 -top-1.5 w-3 h-3 bg-base-300 border-l border-t border-base-content/20 rotate-45"></div>
+      {:else}
+        <!-- Arrow pointing down (tooltip is above target) -->
+        <div class="absolute left-1/2 -translate-x-1/2 -bottom-1.5 w-3 h-3 bg-base-300 border-r border-b border-base-content/20 rotate-45"></div>
+      {/if}
+    </div>
+  {/if}
+
   <!-- Loading State -->
   {#if loader.transcriptLoading}
     <div class="flex items-center justify-center p-8">
