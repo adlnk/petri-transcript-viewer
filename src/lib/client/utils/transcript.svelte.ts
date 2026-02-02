@@ -55,6 +55,7 @@ function createTranscriptDisplayFromRaw(transcript: any, filePath: string): Tran
     judgeSummary: transcript.metadata?.judge_output?.summary || 'No judgment summary available',
     justification: transcript.metadata?.judge_output?.justification || 'No justification available',
     characterAnalysis: transcript.metadata?.judge_output?.character_analysis,
+    highlights: transcript.metadata?.judge_output?.highlights,
     tags: transcript.metadata?.tags || [],
     userTags: transcript.metadata?.user_tags || [],
     shareOnline: transcript.metadata?.share_online,
