@@ -1138,8 +1138,8 @@
         <summary class="text-xs text-base-content/50 hover:text-base-content/70 cursor-pointer select-none">
           Scoring criteria
         </summary>
-        <div class="mt-1 p-2 bg-base-300/30 rounded text-xs text-base-content/70 whitespace-pre-wrap max-h-48 overflow-y-auto">
-          {scoringCriteria}
+        <div class="mt-1 p-2 bg-base-300/30 rounded text-xs text-base-content/70 max-h-96 overflow-y-auto prose prose-xs prose-neutral dark:prose-invert max-w-none">
+          {@html md.render(scoringCriteria)}
         </div>
       </details>
     {/if}
