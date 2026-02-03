@@ -6,6 +6,8 @@
 		exportAnnotationsAsJson,
 		saveAnnotations,
 		hasSaveLocation,
+		setupSaveLocation,
+		canUseSilentSave,
 		getAnnotationCount,
 		hasRecoverableBackup,
 		getBackupInfo,
@@ -17,7 +19,8 @@
 		getLastExportTime,
 		getSecondsUntilNextExport,
 		resetAutoExportCountdown,
-		importAnnotationsFromJson
+		importAnnotationsFromJson,
+		getLatestModificationTime
 	} from '$lib/client/stores/annotation-store';
 
 	let annotationCount = $state(0);
@@ -33,6 +36,8 @@
 	let importing = $state(false);
 	let fileInput: HTMLInputElement;
 	let saveLocationConfigured = $state(false);
+	let hasUnsavedChanges = $state(false);
+	let silentSaveSupported = $state(true); // Assume true until checked
 
 	// Load admin info on mount (for admin mode)
 	onMount(async () => {
@@ -43,10 +48,11 @@
 			annotationCount = await getAnnotationCount();
 			autoExportMinutes = Math.round(getAutoExportInterval() / 60000);
 			lastExport = getLastExportTime();
+			silentSaveSupported = canUseSilentSave();
 			saveLocationConfigured = await hasSaveLocation();
 
-			// Start auto-export timer
-			if (reviewerStore.reviewerName) {
+			// Start auto-export timer (only if silent save is supported)
+			if (reviewerStore.reviewerName && silentSaveSupported) {
 				startAutoExport(reviewerStore.reviewerName);
 			}
 
@@ -64,13 +70,28 @@
 		stopAutoExport();
 	});
 
-	// Periodically update annotation count
+	// Periodically update annotation count and unsaved changes status
 	$effect(() => {
 		if (!reviewerStore.isReviewerMode) return;
 
-		const interval = setInterval(async () => {
+		const checkStatus = async () => {
 			annotationCount = await getAnnotationCount();
-		}, 10000); // Every 10 seconds
+			// Check if there are unsaved changes
+			const latestMod = await getLatestModificationTime();
+			if (latestMod && lastExport) {
+				hasUnsavedChanges = latestMod > lastExport;
+			} else if (latestMod && !lastExport) {
+				// Never saved, but have annotations
+				hasUnsavedChanges = true;
+			} else {
+				hasUnsavedChanges = false;
+			}
+		};
+
+		// Check immediately
+		checkStatus();
+
+		const interval = setInterval(checkStatus, 5000); // Every 5 seconds
 
 		return () => clearInterval(interval);
 	});
@@ -104,13 +125,41 @@
 		if (!reviewerStore.reviewerName) return;
 		saving = true;
 		try {
+			// If File System Access API not supported, fall back to regular export
+			if (!silentSaveSupported) {
+				console.log('Silent save not supported, using export fallback');
+				await exportAnnotationsAsJson(reviewerStore.reviewerName);
+				lastExport = new Date().toISOString();
+				hasUnsavedChanges = false;
+				return;
+			}
+
+			// If no save location configured yet, set one up first
+			if (!saveLocationConfigured) {
+				console.log('Setting up save location...');
+				const locationSet = await setupSaveLocation(reviewerStore.reviewerName);
+				if (locationSet) {
+					saveLocationConfigured = true;
+					console.log('Save location configured');
+				} else {
+					console.log('Save location setup cancelled or failed');
+					return;
+				}
+			}
+
 			const success = await saveAnnotations(reviewerStore.reviewerName);
 			if (success) {
 				lastExport = new Date().toISOString();
 				saveLocationConfigured = await hasSaveLocation();
+				hasUnsavedChanges = false;
 				// Reset countdown since we just saved
 				resetAutoExportCountdown();
+				console.log('Save successful');
+			} else {
+				console.log('Save returned false');
 			}
+		} catch (err) {
+			console.error('Save error:', err);
 		} finally {
 			saving = false;
 		}
@@ -285,29 +334,42 @@
 					onchange={handleFileSelect}
 				/>
 
-				<!-- Auto-save settings with countdown -->
-				<div class="flex items-center gap-1">
-					<span class="text-xs text-base-content/50">Auto-save:</span>
-					<select
-						class="select select-xs select-ghost"
-						value={autoExportMinutes}
-						onchange={handleAutoExportChange}
-					>
-						<option value={0}>Off</option>
-						<option value={15}>15 min</option>
-						<option value={30}>30 min</option>
-						<option value={60}>1 hour</option>
-					</select>
-					{#if secondsUntilExport !== null && autoExportMinutes > 0 && saveLocationConfigured}
-						<span class="text-xs text-base-content/40 font-mono">
-							({formatCountdown(secondsUntilExport)})
-						</span>
-					{:else if autoExportMinutes > 0 && !saveLocationConfigured}
-						<span class="text-xs text-warning" title="Click Save to set up auto-save location">
-							(no location)
-						</span>
-					{/if}
-				</div>
+				<!-- Auto-save settings with countdown (only if browser supports it) -->
+				{#if silentSaveSupported}
+					<div class="flex items-center gap-1">
+						<span class="text-xs text-base-content/50">Auto-save:</span>
+						<select
+							class="select select-xs select-ghost"
+							value={autoExportMinutes}
+							onchange={handleAutoExportChange}
+						>
+							<option value={0}>Off</option>
+							<option value={15}>15 min</option>
+							<option value={30}>30 min</option>
+							<option value={60}>1 hour</option>
+						</select>
+						{#if autoExportMinutes > 0}
+							{#if saveLocationConfigured}
+								{#if secondsUntilExport !== null}
+									<span class="text-xs font-mono text-base-content/40">
+										({formatCountdown(secondsUntilExport)})
+									</span>
+								{/if}
+							{:else}
+								<span class="text-xs text-warning flex items-center gap-1" title="Auto-save needs a file location. Click the Save button to choose where to save.">
+									<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+									</svg>
+									Click Save button to enable
+								</span>
+							{/if}
+						{/if}
+					</div>
+				{:else}
+					<span class="text-xs text-base-content/40" title="Auto-save requires Chrome or Edge. Use Export to save manually.">
+						Auto-save: N/A (use Export)
+					</span>
+				{/if}
 
 				{#if lastExport}
 					<span class="text-xs text-base-content/50" title="Last save: {lastExport}">
@@ -332,12 +394,14 @@
 					Import
 				</button>
 
-				<!-- Save button (silent save to configured location) -->
+				<!-- Save button (silent save or download fallback) -->
 				<button
 					class="btn btn-ghost btn-xs"
 					onclick={handleSave}
-					disabled={saving || annotationCount === 0}
-					title={saveLocationConfigured ? "Save to configured location" : "Choose save location"}
+					disabled={saving || (silentSaveSupported && saveLocationConfigured && !hasUnsavedChanges) || (!silentSaveSupported && !hasUnsavedChanges)}
+					title={!silentSaveSupported
+						? (hasUnsavedChanges ? "Download annotations as JSON" : "No unsaved changes")
+						: (!saveLocationConfigured ? "Click to set up save location for auto-save" : (!hasUnsavedChanges ? "No unsaved changes" : "Save to configured location"))}
 				>
 					{#if saving}
 						<span class="loading loading-spinner loading-xs"></span>

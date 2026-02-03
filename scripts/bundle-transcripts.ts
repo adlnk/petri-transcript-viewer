@@ -338,6 +338,19 @@ export const BUNDLE_TRANSCRIPT_COUNT = ${metadataList.length};
   fs.writeFileSync(descriptionsPath, JSON.stringify(allDescriptions));
   console.log(`Generated dimension descriptions: ${descriptionsPath} (${Object.keys(allDescriptions).length} dimensions)`);
 
+  // Generate dimension display names (human-readable versions of dimension IDs)
+  // Transform snake_case to Title Case (e.g., "overall_soul_doc_deviation" -> "Overall Soul Doc Deviation")
+  const displayNames: Record<string, string> = {};
+  for (const dimId of Object.keys(allDescriptions)) {
+    displayNames[dimId] = dimId
+      .split('_')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
+  }
+  const displayNamesPath = path.join(staticDir, 'dimension-display-names.json');
+  fs.writeFileSync(displayNamesPath, JSON.stringify(displayNames));
+  console.log(`Generated dimension display names: ${displayNamesPath}`);
+
   // Copy individual transcript files to static/transcripts/ for lazy loading
   const transcriptsDir = path.join(__dirname, '../static/transcripts');
   fs.mkdirSync(transcriptsDir, { recursive: true });

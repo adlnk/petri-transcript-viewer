@@ -144,6 +144,13 @@ function isFileSystemAccessSupported(): boolean {
 }
 
 /**
+ * Public check for File System Access API support
+ */
+export function canUseSilentSave(): boolean {
+  return isFileSystemAccessSupported();
+}
+
+/**
  * Get stored file handle for auto-save
  */
 async function getStoredFileHandle(): Promise<FileSystemFileHandle | null> {
@@ -350,6 +357,23 @@ export async function setIssueFlags(
 }
 
 /**
+ * Set notes for issue flags
+ */
+export async function setIssueFlagNotes(
+  filePath: string,
+  reviewerName: string,
+  notes: Record<string, string>
+): Promise<void> {
+  const existing = await getAnnotation(filePath);
+
+  await saveAnnotation(filePath, {
+    ...existing,
+    reviewerName,
+    issueFlagNotes: notes
+  });
+}
+
+/**
  * Set user tags (reviewer-added tags)
  */
 export async function setUserTags(
@@ -384,11 +408,46 @@ export async function setUserNotes(
 }
 
 /**
+ * Set analysis notes (comments on judge output)
+ */
+export async function setAnalysisNotes(
+  filePath: string,
+  reviewerName: string,
+  notes: string
+): Promise<void> {
+  const existing = await getAnnotation(filePath);
+
+  await saveAnnotation(filePath, {
+    ...existing,
+    reviewerName,
+    analysisNotes: notes || undefined
+  });
+}
+
+/**
  * Get count of annotated transcripts
  */
 export async function getAnnotationCount(): Promise<number> {
   const db = await getDb();
   return db.count(STORE_NAME);
+}
+
+/**
+ * Get the latest modification time across all annotations
+ * Returns ISO string or null if no annotations
+ */
+export async function getLatestModificationTime(): Promise<string | null> {
+  const annotations = await getAllAnnotations();
+  if (annotations.size === 0) return null;
+
+  let latest: string | null = null;
+  for (const annotation of annotations.values()) {
+    const modified = (annotation as any).lastModified;
+    if (modified && (!latest || modified > latest)) {
+      latest = modified;
+    }
+  }
+  return latest;
 }
 
 // ============================================================================
