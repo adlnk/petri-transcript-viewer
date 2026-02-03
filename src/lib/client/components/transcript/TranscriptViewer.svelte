@@ -12,7 +12,7 @@
   import MarkdownIt from 'markdown-it';
   import { adminMode } from '$lib/client/stores/admin.svelte';
   import { reviewerStore } from '$lib/client/stores/reviewer.svelte';
-  import { getAnnotation } from '$lib/client/stores/annotation-store';
+  import { getAnnotation, setAnalysisNotes, setReviewComplete, annotationCache } from '$lib/client/stores/annotation-store';
   import type { ReviewerAnnotations } from '$lib/shared/types';
   import TagEditor from '$lib/client/components/admin/TagEditor.svelte';
   import TagChip from '$lib/client/components/admin/TagChip.svelte';
@@ -284,9 +284,14 @@
   // Load reviewer annotations when in reviewer mode
   $effect(() => {
     if (reviewerStore.isReviewerMode && filePath) {
+      // Load individual annotation
       getAnnotation(filePath).then(ann => {
         reviewerAnnotations = ann;
       });
+      // Ensure cache is loaded (for review complete checkbox reactivity)
+      if (!annotationCache.isLoaded()) {
+        annotationCache.load();
+      }
     }
   });
 
@@ -835,6 +840,28 @@
             Transcript #{loader.transcript?.id}{#if loader.transcript?.wordId}&nbsp;<span class="font-medium">"{loader.transcript.wordId}"</span>{/if}
           </p>
         </div>
+        {#if reviewerStore.can('editNotes')}
+          <!-- Review Complete Checkbox -->
+          <!-- Subscribe to cache store for reactivity -->
+          {@const cacheState = $annotationCache}
+          {@const isComplete = cacheState.completedPaths.has(filePath)}
+          <label class="flex items-center gap-2 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              class="checkbox checkbox-success"
+              checked={isComplete}
+              onchange={async (e) => {
+                const target = e.target as HTMLInputElement;
+                if (reviewerStore.reviewerName) {
+                  await setReviewComplete(filePath, reviewerStore.reviewerName, target.checked);
+                }
+              }}
+            />
+            <span class="text-sm font-medium {isComplete ? 'text-success' : 'text-base-content/70'}">
+              {isComplete ? 'Review complete' : 'Mark as reviewed'}
+            </span>
+          </label>
+        {/if}
       </div>
 
       <!-- Transcript Summary (at top, above scores) -->
@@ -1100,6 +1127,26 @@
         <div class="mb-4 p-4 bg-base-200 rounded-lg" onclick={handleCitationClick}>
           <h3 class="text-lg font-semibold mb-2">Character Analysis</h3>
           <div class="prose prose-sm max-w-none">{@html renderMarkdownWithCitations(loader.transcript.characterAnalysis)}</div>
+        </div>
+      {/if}
+
+      <!-- Analysis Notes (for comments on judge output and character analysis) -->
+      {#if reviewerStore.can('editNotes')}
+        <div class="mb-4 p-4 bg-primary/5 border border-primary/20 rounded-lg">
+          <h3 class="text-lg font-semibold mb-1">Analysis Notes</h3>
+          <p class="text-xs text-base-content/50 mb-3">Comments on the judge's assessment, scores, or character analysis above.</p>
+          <textarea
+            class="textarea textarea-bordered w-full text-sm"
+            rows="3"
+            placeholder="Any thoughts on the judge's assessment? Do you agree with the scores? Are the citations accurate?"
+            value={reviewerAnnotations?.analysisNotes || ''}
+            oninput={async (e) => {
+              if (reviewerStore.reviewerName) {
+                await setAnalysisNotes(filePath, reviewerStore.reviewerName, e.currentTarget.value);
+                await refreshReviewerAnnotations();
+              }
+            }}
+          ></textarea>
         </div>
       {/if}
 

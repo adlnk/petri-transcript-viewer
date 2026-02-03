@@ -33,6 +33,8 @@
   import { adminMode } from '$lib/client/stores/admin.svelte';
   import { selection } from '$lib/client/stores/selection.svelte';
   import { transcriptNavigation } from '$lib/client/stores/navigation.svelte';
+  import { reviewerStore } from '$lib/client/stores/reviewer.svelte';
+  import { annotationCache } from '$lib/client/stores/annotation-store';
 
   // Row heights for different density modes
   const ROW_HEIGHTS: Record<RowDensity, number> = {
@@ -114,10 +116,17 @@
     const stored = loadColumnVisibility();
     if (Object.keys(stored).length === 0) {
       // No stored visibility - apply defaults
-      columnVisibility = getDefaultColumnVisibility(scoreTypes);
+      columnVisibility = getDefaultColumnVisibility(scoreTypes, reviewerStore.isReviewerMode);
       debugLog('📋 [DEBUG] Applied default column visibility for', scoreTypes.length, 'score types');
     }
     columnVisibilityInitialized = true;
+  });
+
+  // Load annotation cache for reviewer mode
+  $effect(() => {
+    if (reviewerStore.isReviewerMode && !annotationCache.isLoaded()) {
+      annotationCache.load();
+    }
   });
 
   const handleColumnVisibilityChange = (updaterOrValue: any) => {
@@ -181,7 +190,7 @@
   // TanStack Table options as a writable store to avoid re-creating the table
   let options = writable<TableOptions<TableRow>>({
     data: [],
-    columns: createColumns(scoreTypes || [], [], scoreDescriptions || {}, adminMode.isAdminMode),
+    columns: createColumns(scoreTypes || [], [], scoreDescriptions || {}, adminMode.isAdminMode, reviewerStore.isReviewerMode),
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getSortedRowModel: getSortedRowModel(),
@@ -219,7 +228,7 @@
   // 1) Update data/columns only when inputs change
   $effect(() => {
     const currentData = tableData || [];
-    const currentColumns = createColumns(scoreTypes || [], currentData, scoreDescriptions || {}, adminMode.isAdminMode);
+    const currentColumns = createColumns(scoreTypes || [], currentData, scoreDescriptions || {}, adminMode.isAdminMode, reviewerStore.isReviewerMode);
     options.update(old => ({
       ...old,
       data: currentData,
@@ -380,7 +389,7 @@
   // Debug effect (dev only)
   $effect(() => {
     if (!import.meta.env?.DEV) return;
-    const columns = createColumns(scoreTypes || [], tableData || [], scoreDescriptions || {}, adminMode.isAdminMode);
+    const columns = createColumns(scoreTypes || [], tableData || [], scoreDescriptions || {}, adminMode.isAdminMode, reviewerStore.isReviewerMode);
     void columns;
   });
 
@@ -416,7 +425,7 @@
   }
 
   // Get all column info for the visibility toggle
-  let allColumnInfo = $derived(getAllColumnInfo(scoreTypes, adminMode.isAdminMode));
+  let allColumnInfo = $derived(getAllColumnInfo(scoreTypes, adminMode.isAdminMode, reviewerStore.isReviewerMode));
 </script>
 
 <div class="w-full">
@@ -508,12 +517,18 @@
                         <ModelFilterHeader column={header.column} allModels={allModels} />
                       </div>
                     {:else}
+                      <!-- Get full column name for tooltip -->
+                      {@const columnId = header.column.id}
+                      {@const headerTooltip = columnId === 'reviewed' ? 'Review Complete' :
+                        columnId.startsWith('score_') ? columnId.slice(6).replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) :
+                        String(header.column.columnDef.header)}
                       <div class="flex items-center gap-2 overflow-hidden h-full w-full">
                         <button
                           class="flex items-center gap-2 hover:text-primary {header.column.getCanSort() ? 'cursor-pointer' : ''} text-sm font-medium whitespace-nowrap"
                           onclick={(e) => handleHeaderClick(header.column, e)}
                           disabled={!header.column.getCanSort()}
                           type="button"
+                          title={headerTooltip}
                         >
                           {#if header.column.getCanSort()}
                             {#if header.column.getIsSorted() === 'asc'}

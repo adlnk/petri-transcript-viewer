@@ -5,6 +5,8 @@
   import { debugLog } from '$lib/client/utils/debug';
   import { selection } from '$lib/client/stores/selection.svelte';
   import ShareToggle from '$lib/client/components/admin/ShareToggle.svelte';
+  import { annotationCache, setReviewComplete } from '$lib/client/stores/annotation-store';
+  import { reviewerStore } from '$lib/client/stores/reviewer.svelte';
 
   // Get badge class for namespaced tags
   function getTagBadgeClass(tag: string): string {
@@ -186,6 +188,35 @@
       }}
     >
       <ShareToggle {filePath} {shareOnline} compact={true} />
+    </svelte:element>
+  {:else if cell.column.id === 'reviewed'}
+    <!-- Review complete checkbox (reviewer mode) -->
+    {@const filePath = rowData.originalTranscript?._filePath || ''}
+    <!-- Subscribe to cache store for reactivity -->
+    {@const cacheState = $annotationCache}
+    {@const isComplete = cacheState.completedPaths.has(filePath)}
+    <svelte:element
+      this={cellElement}
+      class="{baseClasses} justify-center"
+      style="{cellStyle}"
+      onclick={(e: Event) => {
+        e.stopPropagation();
+        e.preventDefault();
+      }}
+    >
+      <input
+        type="checkbox"
+        class="checkbox checkbox-sm checkbox-success"
+        checked={isComplete}
+        onclick={async (e: Event) => {
+          e.stopPropagation();
+          const target = e.target as HTMLInputElement;
+          if (reviewerStore.reviewerName && filePath) {
+            await setReviewComplete(filePath, reviewerStore.reviewerName, target.checked);
+          }
+        }}
+        title={isComplete ? 'Mark as not reviewed' : 'Mark as reviewed'}
+      />
     </svelte:element>
   {:else if cell.column.id === 'id'}
     <svelte:element

@@ -335,11 +335,19 @@ STARTING THE VIEWER
 -------------------
 Mac:        Double-click "Start Reviewer.command"
             Or run ./start.sh in Terminal
-Windows:    Double-click start.bat
+Windows:    Double-click start.bat (requires Python 3, see below)
 Linux:      ./start.sh
 Custom port: ./start.sh 3000
 
 Then open http://localhost:8080 in your browser.
+
+WINDOWS USERS: Python Required
+------------------------------
+Windows doesn't include Python by default. To install:
+1. Go to https://www.python.org/downloads/
+2. Download and run the installer
+3. IMPORTANT: Check "Add Python to PATH" during installation
+4. Restart your terminal/command prompt, then double-click start.bat
 
 IMPORTANT NOTES
 ---------------

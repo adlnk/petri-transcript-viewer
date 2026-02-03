@@ -425,6 +425,26 @@ export async function setAnalysisNotes(
 }
 
 /**
+ * Set review complete status
+ */
+export async function setReviewComplete(
+  filePath: string,
+  reviewerName: string,
+  complete: boolean
+): Promise<void> {
+  const existing = await getAnnotation(filePath);
+
+  await saveAnnotation(filePath, {
+    ...existing,
+    reviewerName,
+    reviewComplete: complete
+  });
+
+  // Update the reactive cache
+  annotationCache.update(filePath, complete);
+}
+
+/**
  * Get count of annotated transcripts
  */
 export async function getAnnotationCount(): Promise<number> {
@@ -807,3 +827,103 @@ export async function saveAnnotation(
   // Trigger backup after successful save (don't await to avoid slowing down saves)
   saveBackupToLocalStorage().catch(() => {});
 }
+
+// ============================================================================
+// Reactive annotation cache for table view
+// ============================================================================
+
+import { writable, type Readable } from 'svelte/store';
+
+interface CacheState {
+  completedPaths: Set<string>;
+  loaded: boolean;
+}
+
+// Internal writable store
+const cacheStore = writable<CacheState>({
+  completedPaths: new Set(),
+  loaded: false,
+});
+
+// Current state (for synchronous access)
+let currentState: CacheState = {
+  completedPaths: new Set(),
+  loaded: false,
+};
+
+// Keep currentState in sync with store
+cacheStore.subscribe(state => {
+  currentState = state;
+});
+
+/**
+ * Reactive cache for annotation completion status
+ * Uses Svelte store for reactivity
+ */
+export const annotationCache = {
+  /**
+   * Check if a transcript is marked as review complete
+   */
+  isComplete(filePath: string): boolean {
+    return currentState.completedPaths.has(filePath);
+  },
+
+  /**
+   * Update a single entry in the cache
+   */
+  update(filePath: string, complete: boolean): void {
+    cacheStore.update(state => {
+      const newPaths = new Set(state.completedPaths);
+      if (complete) {
+        newPaths.add(filePath);
+      } else {
+        newPaths.delete(filePath);
+      }
+      return { ...state, completedPaths: newPaths };
+    });
+  },
+
+  /**
+   * Load all annotations into the cache
+   * Call this when the table mounts
+   */
+  async load(): Promise<void> {
+    const annotations = await getAllAnnotations();
+    const newPaths = new Set<string>();
+    for (const [filePath, annotation] of annotations) {
+      if (annotation.reviewComplete) {
+        newPaths.add(filePath);
+      }
+    }
+    cacheStore.set({
+      completedPaths: newPaths,
+      loaded: true,
+    });
+  },
+
+  /**
+   * Check if cache has been loaded
+   */
+  isLoaded(): boolean {
+    return currentState.loaded;
+  },
+
+  /**
+   * Get count of completed reviews
+   */
+  getCompletedCount(): number {
+    return currentState.completedPaths.size;
+  },
+
+  /**
+   * Get all completed file paths
+   */
+  getCompletedPaths(): Set<string> {
+    return new Set(currentState.completedPaths);
+  },
+
+  /**
+   * Subscribe to cache changes (Svelte store protocol)
+   */
+  subscribe: cacheStore.subscribe,
+};

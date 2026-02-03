@@ -515,8 +515,11 @@ export interface ReviewerAnnotations {
   reviewerName: string;
   reviewerScores?: ReviewerScore[];
   issueFlags?: ReviewerIssueFlag[];
+  issueFlagNotes?: Record<string, string>;  // Notes for specific issue flags
   userTags?: string[];
   userNotes?: string;
+  analysisNotes?: string;  // Notes specifically about the judge's analysis
+  reviewComplete?: boolean;  // Marked as finished reviewing
   lastModified: string;
 }
 
@@ -525,4 +528,10 @@ export interface ReviewerAnnotationsExport {
   reviewerName: string;
   // Annotations without redundant reviewerName (it's at top level)
   annotations: Array<Omit<ReviewerAnnotations, 'reviewerName'> & { filePath: string }>;
+}
+
+// Minimal annotation info for list view (avoids loading full annotations)
+export interface AnnotationSummary {
+  reviewComplete?: boolean;
+  hasAnnotations?: boolean;
 }

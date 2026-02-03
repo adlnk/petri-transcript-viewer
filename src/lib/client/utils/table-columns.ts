@@ -8,6 +8,7 @@ export interface CreateColumnsOptions {
   data?: TableRow[];
   scoreDescriptions?: Record<string, string>;
   isAdminMode?: boolean;
+  isReviewerMode?: boolean;
 }
 
 /**
@@ -75,9 +76,24 @@ const PRIORITY_SCORE_TYPES = [
 ];
 
 // Use the unified TableRow type directly (no more TreeTableRow duplication)
-export function createColumns(scoreTypes: string[], data: TableRow[] = [], scoreDescriptions: Record<string, string> = {}, isAdminMode: boolean = false): ColumnDef<TableRow>[] {
+export function createColumns(scoreTypes: string[], data: TableRow[] = [], scoreDescriptions: Record<string, string> = {}, isAdminMode: boolean = false, isReviewerMode: boolean = false): ColumnDef<TableRow>[] {
   // Calculate dynamic width for ID column
   const idColumnWidth = calculateIdColumnWidth(data);
+
+  // Reviewer columns (review complete checkbox)
+  const reviewerColumns: ColumnDef<TableRow>[] = isReviewerMode ? [
+    {
+      id: 'reviewed',
+      header: '✓',
+      accessorFn: () => false, // Actual value comes from annotation cache
+      cell: () => '', // Rendered via TableCell
+      enableSorting: true,
+      enableResizing: false,
+      size: 50,
+      minSize: 50,
+      maxSize: 50,
+    },
+  ] : [];
 
   // Admin columns (selection checkbox, share toggle)
   const adminColumns: ColumnDef<TableRow>[] = isAdminMode ? [
@@ -285,11 +301,12 @@ export function createColumns(scoreTypes: string[], data: TableRow[] = [], score
     };
   });
 
-  return [...adminColumns, ...baseColumns, ...scoreColumns];
+  return [...reviewerColumns, ...adminColumns, ...baseColumns, ...scoreColumns];
 }
 
-export function getDefaultColumnVisibility(scoreTypes: string[]) {
+export function getDefaultColumnVisibility(scoreTypes: string[], isReviewerMode: boolean = false) {
   const visibility: Record<string, boolean> = {
+    reviewed: isReviewerMode, // Show in reviewer mode
     id: false,
     model: true,
     tags: true,
@@ -305,13 +322,18 @@ export function getDefaultColumnVisibility(scoreTypes: string[]) {
   return visibility;
 }
 
-export function getAllColumnInfo(scoreTypes: string[], isAdminMode: boolean = false) {
+export function getAllColumnInfo(scoreTypes: string[], isAdminMode: boolean = false, isReviewerMode: boolean = false) {
+  const reviewerInfo = isReviewerMode ? [
+    { id: 'reviewed', header: 'Reviewed' },
+  ] : [];
+
   const adminInfo = isAdminMode ? [
     { id: 'select', header: 'Select' },
     { id: 'share', header: 'Share' },
   ] : [];
 
   return [
+    ...reviewerInfo,
     ...adminInfo,
     { id: 'id', header: 'ID' },
     { id: 'model', header: 'Model' },
