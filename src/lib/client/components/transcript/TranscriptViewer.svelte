@@ -22,6 +22,7 @@
   import ReviewerNotesEditor from '$lib/client/components/reviewer/ReviewerNotesEditor.svelte';
   import ReviewerScores from '$lib/client/components/reviewer/ReviewerScores.svelte';
   import IssueFlags from '$lib/client/components/reviewer/IssueFlags.svelte';
+  import TranscriptNav from './TranscriptNav.svelte';
 
   // Markdown renderer for Character Analysis
   const md = new MarkdownIt({ html: false, breaks: true, linkify: true });
@@ -810,6 +811,13 @@
 
 <!-- Transcript Content Snippet -->
 {#snippet transcriptContent()}
+  <!-- Sticky Navigation Sidebar -->
+  <TranscriptNav
+    hasCharacterAnalysis={!!loader.transcript?.characterAnalysis}
+    hasSeedPrompt={!!auditorSeedPrompt}
+    hasSubJudgeResults={hasSubJudgeResults}
+  />
+
   <!-- Metadata Section - Constrained width -->
   <div class="p-4 space-y-6">
     <!-- Header with metadata -->
@@ -876,7 +884,7 @@
       {/if}
 
       <!-- Scores by Category -->
-      <div class="mb-6 space-y-4">
+      <div id="section-scores" class="mb-6 space-y-4">
         <h3 class="text-lg font-semibold">Scores</h3>
         {#each categorizeScores(loader.transcript?.scores || {}) as { category, label, items }}
           <div class="space-y-2">
@@ -914,7 +922,7 @@
 
       <!-- Auditor Seed Prompt (collapsible) -->
       {#if auditorSeedPrompt}
-        <div class="collapse collapse-arrow bg-base-200 mb-4">
+        <div id="section-seed-prompt" class="collapse collapse-arrow bg-base-200 mb-4">
           <input type="checkbox" />
           <div class="collapse-title text-lg font-semibold">
             Auditor Seed Prompt
@@ -940,7 +948,7 @@
       {/if}
 
       <!-- Tags -->
-      <div class="mb-4">
+      <div id="section-tags" class="mb-4">
         <div class="flex items-center gap-2 mb-2">
           <h3 class="text-lg font-semibold">Tags</h3>
           {#if (adminMode.isAdminMode || reviewerStore.can('addUserTags')) && !isEditingTags}
@@ -1074,7 +1082,7 @@
       <!-- Judge Summary -->
       <!-- svelte-ignore a11y_click_events_have_key_events -->
       <!-- svelte-ignore a11y_no_static_element_interactions -->
-      <div class="mb-4" onclick={handleCitationClick}>
+      <div id="section-judge-summary" class="mb-4" onclick={handleCitationClick}>
         <h3 class="text-lg font-semibold mb-2">Judge Summary</h3>
         <p class="text-sm leading-relaxed whitespace-pre-wrap">{@html renderCitations(loader.transcript?.judgeSummary)}</p>
       </div>
@@ -1082,7 +1090,7 @@
       <!-- Dimension Justifications / Judge Justification -->
       <!-- svelte-ignore a11y_click_events_have_key_events -->
       <!-- svelte-ignore a11y_no_static_element_interactions -->
-      <div id="judge-justification" class="mb-4" onclick={handleCitationClick}>
+      <div id="section-dimensions" class="mb-4" onclick={handleCitationClick}>
         <h3 class="text-lg font-semibold mb-2">
           {hasSubJudgeResults ? 'Dimension Justifications' : 'Judge Justification'}
         </h3>
@@ -1124,7 +1132,7 @@
       {#if loader.transcript?.characterAnalysis}
         <!-- svelte-ignore a11y_click_events_have_key_events -->
         <!-- svelte-ignore a11y_no_static_element_interactions -->
-        <div class="mb-4 p-4 bg-base-200 rounded-lg" onclick={handleCitationClick}>
+        <div id="section-character" class="mb-4 p-4 bg-base-200 rounded-lg" onclick={handleCitationClick}>
           <h3 class="text-lg font-semibold mb-2">Character Analysis</h3>
           <div class="prose prose-sm max-w-none">{@html renderMarkdownWithCitations(loader.transcript.characterAnalysis)}</div>
         </div>
@@ -1170,9 +1178,9 @@
 
 <!-- View Controls Snippet -->
 {#snippet viewControls()}
-  <div class="card bg-base-100 shadow-sm max-w-6xl mx-auto">
+  <div id="section-transcript" class="card bg-base-100 shadow-sm max-w-6xl mx-auto">
     <div class="card-body">
-      <h2 id="conversation-section" class="text-xl font-bold mb-4">Conversation</h2>
+      <h2 class="text-xl font-bold mb-4">Conversation</h2>
       
 
       
