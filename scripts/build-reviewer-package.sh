@@ -7,12 +7,15 @@
 #   ./scripts/build-reviewer-package.sh --sample 5         # Sample 5 random transcripts
 #   ./scripts/build-reviewer-package.sh --filter "wave4*"  # Only wave4 directories
 #   ./scripts/build-reviewer-package.sh --filter "opus*" --sample 10  # 10 random opus transcripts
+#   ./scripts/build-reviewer-package.sh --manifest batch-01.txt  # Use pre-partitioned manifest
 #
 # Filter patterns match against the relative path from transcript root.
 # Examples:
 #   --filter "opus_4.5_wave4*"       # Directories starting with opus_4.5_wave4
 #   --filter "*wave4*"               # Any path containing "wave4"
 #   --filter "*/transcript_*_1A_*"   # Strategy 1A transcripts in any directory
+#
+# Manifest files (from partition-transcripts.py) list one transcript path per line.
 #
 # Output: reviewer-package/ directory ready to distribute
 
@@ -27,6 +30,7 @@ TRANSCRIPT_DIR=""
 SAMPLE_COUNT=""
 FILTER_PATTERN=""
 STRATIFY_TAG=""
+MANIFEST_FILE=""
 DRY_RUN=""
 
 while [[ $# -gt 0 ]]; do
@@ -47,6 +51,10 @@ while [[ $# -gt 0 ]]; do
             STRATIFY_TAG="$2"
             shift 2
             ;;
+        --manifest|-m)
+            MANIFEST_FILE="$2"
+            shift 2
+            ;;
         --dry-run)
             DRY_RUN="1"
             shift
@@ -58,6 +66,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --filter, -f PATTERN   Filter transcripts by glob pattern"
             echo "  --sample N             Randomly sample N transcripts (or per-stratum with --stratify)"
             echo "  --stratify, -s PREFIX  Stratify by tag prefix (e.g., 'strategy:') and sample evenly"
+            echo "  --manifest, -m FILE    Use manifest file from partition-transcripts.py"
             echo "  --output, -o DIR       Output directory (default: reviewer-package/)"
             echo "  --dry-run              List matching transcripts without building"
             echo "  --help, -h             Show this help"
@@ -66,6 +75,7 @@ while [[ $# -gt 0 ]]; do
             echo "  $0 --filter 'opus_4.5_wave4*' --sample 20 /path/to/transcripts"
             echo "  $0 --stratify 'strategy:' --sample 30 /path/to/transcripts"
             echo "  $0 --filter '*wave4*' --stratify 'strategy:' --sample 30 /path/to/transcripts"
+            echo "  $0 --manifest reviewer-batch-01.txt /path/to/transcripts"
             exit 0
             ;;
         *)
@@ -89,9 +99,40 @@ TRANSCRIPT_DIR="$(cd "$TRANSCRIPT_DIR" 2>/dev/null && pwd)" || {
 echo "=== Building Reviewer Package ==="
 echo "Transcript source: $TRANSCRIPT_DIR"
 echo "Output directory: $OUTPUT_DIR"
+[[ -n "$MANIFEST_FILE" ]] && echo "Manifest file: $MANIFEST_FILE"
 [[ -n "$FILTER_PATTERN" ]] && echo "Filter pattern: $FILTER_PATTERN"
 [[ -n "$STRATIFY_TAG" ]] && echo "Stratify by: $STRATIFY_TAG"
 [[ -n "$SAMPLE_COUNT" ]] && echo "Sample size: $SAMPLE_COUNT"
+
+# Handle manifest file (from partition-transcripts.py)
+if [[ -n "$MANIFEST_FILE" ]]; then
+    if [[ ! -f "$MANIFEST_FILE" ]]; then
+        echo "Error: Manifest file not found: $MANIFEST_FILE"
+        exit 1
+    fi
+
+    TEMP_TRANSCRIPTS=$(mktemp -d)
+    trap "rm -rf $TEMP_TRANSCRIPTS" EXIT
+
+    echo "Reading manifest: $MANIFEST_FILE"
+    MANIFEST_COUNT=0
+    while IFS= read -r rel_path || [[ -n "$rel_path" ]]; do
+        [[ -z "$rel_path" ]] && continue
+        [[ "$rel_path" =~ ^# ]] && continue  # Skip comments
+
+        src="$TRANSCRIPT_DIR/$rel_path"
+        if [[ -f "$src" ]]; then
+            dest="$TEMP_TRANSCRIPTS/$rel_path"
+            mkdir -p "$(dirname "$dest")"
+            cp "$src" "$dest"
+            ((MANIFEST_COUNT++))
+        else
+            echo "Warning: File not found: $rel_path"
+        fi
+    done < "$MANIFEST_FILE"
+
+    echo "Loaded $MANIFEST_COUNT transcripts from manifest"
+    TRANSCRIPT_DIR="$TEMP_TRANSCRIPTS"
 
 # Build list of candidate files (apply filter if specified)
 get_candidate_files() {
@@ -114,7 +155,7 @@ get_candidate_files() {
 }
 
 # If filtering, sampling, or stratifying, create temp directory with subset
-if [[ -n "$SAMPLE_COUNT" ]] || [[ -n "$FILTER_PATTERN" ]] || [[ -n "$STRATIFY_TAG" ]]; then
+elif [[ -n "$SAMPLE_COUNT" ]] || [[ -n "$FILTER_PATTERN" ]] || [[ -n "$STRATIFY_TAG" ]]; then
     TEMP_TRANSCRIPTS=$(mktemp -d)
     trap "rm -rf $TEMP_TRANSCRIPTS" EXIT
 
@@ -406,6 +447,7 @@ PACKAGE INFO
 ------------
 Generated: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
 Transcripts: $TRANSCRIPT_COUNT
+$([ -n "$MANIFEST_FILE" ] && echo "Manifest: $(basename "$MANIFEST_FILE")")
 $([ -n "$FILTER_PATTERN" ] && echo "Filter: $FILTER_PATTERN")
 $([ -n "$STRATIFY_TAG" ] && echo "Stratified by: $STRATIFY_TAG")
 $([ -n "$SAMPLE_COUNT" ] && echo "Sample size: $SAMPLE_COUNT")
