@@ -20,7 +20,7 @@
   import ShareToggle from '$lib/client/components/admin/ShareToggle.svelte';
   import ReviewerTagEditor from '$lib/client/components/reviewer/ReviewerTagEditor.svelte';
   import ReviewerNotesEditor from '$lib/client/components/reviewer/ReviewerNotesEditor.svelte';
-  import ReviewerScores from '$lib/client/components/reviewer/ReviewerScores.svelte';
+  import ReviewerScoreEditor from '$lib/client/components/reviewer/ReviewerScoreEditor.svelte';
   import IssueFlags from '$lib/client/components/reviewer/IssueFlags.svelte';
   import TranscriptNav from './TranscriptNav.svelte';
 
@@ -301,6 +301,33 @@
     if (reviewerStore.isReviewerMode) {
       reviewerAnnotations = await getAnnotation(filePath);
     }
+  }
+
+  // Get reviewer score for a specific dimension
+  function getReviewerScoreForDimension(dimension: string) {
+    return reviewerAnnotations?.reviewerScores?.find(s => s.dimension === dimension);
+  }
+
+  // Score editor modal state
+  let scoreEditorState = $state<{
+    show: boolean;
+    dimension: string;
+    judgeScore: number;
+    displayName?: string;
+    description?: string;
+  }>({ show: false, dimension: '', judgeScore: 0 });
+
+  function openScoreEditor(dimension: string, judgeScore: number, displayName?: string, description?: string) {
+    scoreEditorState = { show: true, dimension, judgeScore, displayName, description };
+  }
+
+  function closeScoreEditor() {
+    scoreEditorState = { ...scoreEditorState, show: false };
+  }
+
+  async function handleScoreEditorSave() {
+    closeScoreEditor();
+    await refreshReviewerAnnotations();
   }
 
   // Combined user tags: bundled + reviewer annotations
@@ -807,6 +834,23 @@
   {#if loader.transcript}
     {@render transcriptContent()}
   {/if}
+
+  <!-- Score Editor Modal -->
+  {#if scoreEditorState.show}
+    <ReviewerScoreEditor
+      filePath={filePath}
+      dimension={scoreEditorState.dimension}
+      displayName={scoreEditorState.displayName}
+      description={scoreEditorState.description}
+      judgeScore={scoreEditorState.judgeScore}
+      judgeJustification={loader.transcript?.justification}
+      subJudgeResults={fullTranscript?.transcript?.metadata?.judge_output?.sub_judge_results}
+      existingScore={getReviewerScoreForDimension(scoreEditorState.dimension)?.score}
+      existingJustification={getReviewerScoreForDimension(scoreEditorState.dimension)?.justification}
+      onSave={handleScoreEditorSave}
+      onCancel={closeScoreEditor}
+    />
+  {/if}
 </div>
 
 <!-- Transcript Content Snippet -->
@@ -891,29 +935,17 @@
             <h4 class="text-sm font-medium text-base-content/70">{label}</h4>
             <div class="flex flex-wrap gap-2 items-center">
               {#each items as [key, value]}
-                <div class="inline-flex items-center gap-1">
-                  <ScoreTooltip
-                    id="score-{key}"
-                    score={value}
-                    scoreName={key}
-                    displayName={dimensionDisplayNames[key]}
-                    description={loader.transcript?.scoreDescriptions?.[key]}
-                    isPetriDefault={PETRI_DEFAULT_SCORES.has(key)}
-                    onClick={handleScoreClick}
-                  />
-                  {#if reviewerStore.can('addReviewerScores')}
-                    <ReviewerScores
-                      filePath={filePath}
-                      dimension={key}
-                      judgeScore={value}
-                      displayName={dimensionDisplayNames[key]}
-                      description={loader.transcript?.scoreDescriptions?.[key]}
-                      judgeJustification={loader.transcript?.justification}
-                      subJudgeResults={fullTranscript?.transcript?.metadata?.judge_output?.sub_judge_results}
-                      onUpdate={refreshReviewerAnnotations}
-                    />
-                  {/if}
-                </div>
+                <ScoreTooltip
+                  id="score-{key}"
+                  score={value}
+                  scoreName={key}
+                  displayName={dimensionDisplayNames[key]}
+                  description={loader.transcript?.scoreDescriptions?.[key]}
+                  isPetriDefault={PETRI_DEFAULT_SCORES.has(key)}
+                  onClick={handleScoreClick}
+                  reviewerScore={getReviewerScoreForDimension(key)}
+                  onEditScore={() => openScoreEditor(key, value, dimensionDisplayNames[key], loader.transcript?.scoreDescriptions?.[key])}
+                />
               {/each}
             </div>
           </div>
@@ -1285,11 +1317,18 @@
 <!-- Dimension Justification Item Snippet -->
 {#snippet dimensionJustificationItem(result: SubJudgeResult)}
   {@const scoringCriteria = loader.transcript?.scoreDescriptions?.[result.dimension]}
+  {@const reviewerScoreForDim = getReviewerScoreForDimension(result.dimension)}
+  {@const displayedScore = reviewerScoreForDim?.score ?? result.score}
   <div id="dimension-justification-{result.dimension}" class="border-l-2 border-base-300 pl-3 py-2">
     <!-- Score badge with dimension name -->
     <div class="flex items-center gap-2 mb-1">
-      <span class={`badge ${getScoreBadgeClass(result.score, result.dimension)}`}>
-        {dimensionDisplayNames[result.dimension] || result.dimension.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}: {result.score}/10
+      <span class={`badge ${getScoreBadgeClass(displayedScore, result.dimension)} ${reviewerScoreForDim ? 'border-2 border-dashed border-secondary/60' : ''}`}>
+        {#if reviewerScoreForDim}
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+          </svg>
+        {/if}
+        {dimensionDisplayNames[result.dimension] || result.dimension.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}: {displayedScore}/10
       </span>
       <!-- Link to score in header -->
       <a
@@ -1305,6 +1344,19 @@
           }
         }}
       >↑</a>
+      <!-- Edit score button (reviewer mode) -->
+      {#if reviewerStore.can('addReviewerScores')}
+        <button
+          type="button"
+          class="hover:bg-base-content/20 rounded-full p-0.5 transition-colors"
+          onclick={() => openScoreEditor(result.dimension, result.score, dimensionDisplayNames[result.dimension], scoringCriteria)}
+          title="Edit score"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+          </svg>
+        </button>
+      {/if}
     </div>
 
     <!-- Note/justification -->

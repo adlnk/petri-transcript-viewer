@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { addReviewerScore } from '$lib/client/stores/annotation-store';
+  import { addReviewerScore, removeReviewerScore } from '$lib/client/stores/annotation-store';
   import { reviewerStore } from '$lib/client/stores/reviewer.svelte';
   import MarkdownIt from 'markdown-it';
 
@@ -33,8 +33,31 @@
   let saving = $state(false);
   let error = $state<string | null>(null);
 
+  // "I agree with this score" checkbox - checked if score matches judge score
+  let agreeWithJudge = $state(existingScore === judgeScore);
+
   let name = $derived(displayName || dimension.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()));
   let isEditing = $derived(existingScore !== undefined);
+
+  // When score changes, uncheck "I agree" if it no longer matches judge score
+  $effect(() => {
+    if (score !== judgeScore) {
+      agreeWithJudge = false;
+    }
+  });
+
+  // Handle "I agree" checkbox change
+  function handleAgreeChange(checked: boolean) {
+    agreeWithJudge = checked;
+    if (checked) {
+      score = judgeScore;
+    }
+  }
+
+  // Revert to judge score (keeps justification, doesn't auto-check "I agree")
+  function handleRevert() {
+    score = judgeScore;
+  }
 
   // Markdown renderer for judge instructions
   const md = new MarkdownIt({ html: false, breaks: true, linkify: false });
@@ -127,37 +150,52 @@
       <h2 class="card-title">{isEditing ? 'Edit' : 'Add'} Reviewer Score</h2>
 
       <!-- Dimension info -->
-      <div class="bg-base-200 rounded-lg p-3 mb-4">
+      <div class="bg-base-200 rounded-lg p-3 mb-2">
         <h3 class="font-semibold text-sm">{name}</h3>
         {#if shortDescription}
           <p class="text-sm text-base-content/70 mt-1">{shortDescription}</p>
         {/if}
-        <p class="text-xs text-base-content/50 mt-2">
-          Judge score: <span class="font-mono font-bold">{judgeScore}/10</span>
-        </p>
       </div>
 
-      <!-- Full judge instructions (expandable) -->
+      <!-- Scoring criteria (expandable, after dimension info) -->
       {#if hasFullInstructions}
-        <div class="collapse collapse-arrow bg-base-200 mb-4">
-          <input type="checkbox" />
-          <div class="collapse-title text-sm font-medium py-2 min-h-0">
-            Scoring Criteria
+        <details class="mb-4">
+          <summary class="text-sm text-base-content/60 hover:text-base-content/80 cursor-pointer select-none">
+            Scoring criteria
+          </summary>
+          <div class="mt-2 p-3 bg-base-200 rounded-lg prose prose-sm max-w-none text-base-content/80">
+            {@html md.render(description || '')}
           </div>
-          <div class="collapse-content">
-            <div class="prose prose-sm max-w-none text-base-content/80">
-              {@html md.render(description || '')}
-            </div>
-          </div>
-        </div>
+        </details>
       {/if}
+
+      <!-- Original judge score (prominent when editing) -->
+      <div class="bg-base-200 rounded-lg p-3 mb-4 flex items-center justify-between">
+        <div>
+          <span class="text-sm text-base-content/70">Judge score:</span>
+          <span class="font-mono font-bold text-lg ml-2">{judgeScore}/10</span>
+        </div>
+        {#if isEditing && score !== judgeScore}
+          <button
+            type="button"
+            class="btn btn-ghost btn-xs"
+            onclick={handleRevert}
+            title="Revert to judge score"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+            </svg>
+            Revert
+          </button>
+        {/if}
+      </div>
 
       <!-- Judge's justification for this dimension -->
       {#if dimensionJustification}
         <div class="collapse collapse-arrow bg-base-200 mb-4">
           <input type="checkbox" checked />
           <div class="collapse-title text-sm font-medium py-2 min-h-0">
-            {subJudgeResult ? "Sub-Judge's Analysis" : "Judge's Justification"}
+            {subJudgeResult ? "Judge Model Analysis" : "Judge's Justification"}
           </div>
           <div class="collapse-content">
             <p class="text-sm text-base-content/80 whitespace-pre-wrap">{dimensionJustification}</p>
@@ -196,6 +234,17 @@
         </div>
       </div>
 
+      <!-- I agree with judge checkbox -->
+      <label class="flex items-center gap-2 mb-4 cursor-pointer">
+        <input
+          type="checkbox"
+          class="checkbox checkbox-sm checkbox-primary"
+          checked={agreeWithJudge}
+          onchange={(e) => handleAgreeChange(e.currentTarget.checked)}
+        />
+        <span class="text-sm">I agree with the judge's score</span>
+      </label>
+
       <!-- Justification -->
       <div class="form-control mb-4">
         <label class="label">
@@ -203,7 +252,7 @@
         </label>
         <textarea
           class="textarea textarea-bordered h-24"
-          placeholder="Why do you disagree with the judge's score?"
+          placeholder="Why do you agree/disagree with the judge's score?"
           bind:value={justification}
         ></textarea>
       </div>
