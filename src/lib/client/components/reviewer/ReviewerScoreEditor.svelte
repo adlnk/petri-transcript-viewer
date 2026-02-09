@@ -70,8 +70,8 @@
     return match ? match[0] : description.slice(0, 100) + (description.length > 100 ? '...' : '');
   });
 
-  // Check if description is long enough to warrant expandable section
-  let hasFullInstructions = $derived(description && description.length > 150);
+  // Check if we have full scoring instructions to show
+  let hasFullInstructions = $derived(!!description);
 
   // Get the sub-judge result for this specific dimension
   let subJudgeResult = $derived.by(() => {
@@ -121,7 +121,8 @@
       await addReviewerScore(filePath, reviewerStore.reviewerName, {
         dimension,
         score,
-        justification: justification.trim() || undefined
+        justification: justification.trim() || undefined,
+        agreedWithJudge: agreeWithJudge
       });
       onSave();
     } catch (err: any) {

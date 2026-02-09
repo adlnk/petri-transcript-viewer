@@ -30,9 +30,18 @@
   // Use displayName if provided, otherwise fall back to scoreName
   let shownName = $derived(displayName || scoreName);
 
-  // Display score: show reviewer score if it exists, otherwise judge score
-  let displayScore = $derived(reviewerScore?.score ?? score);
-  let hasReviewerScore = $derived(reviewerScore !== undefined);
+  // Reviewer edited the score if: score differs from judge OR they explicitly agreed
+  let reviewerMadeChange = $derived(
+    reviewerScore !== undefined &&
+    (reviewerScore.score !== score || reviewerScore.agreedWithJudge === true)
+  );
+
+  // Display score: show reviewer score only if they made a meaningful change
+  let displayScore = $derived(reviewerMadeChange ? reviewerScore!.score : score);
+
+  // Show checkmark if agreed, user icon if score differs
+  let showAgreedCheckmark = $derived(reviewerScore?.agreedWithJudge === true);
+  let showUserIcon = $derived(reviewerMadeChange && !showAgreedCheckmark);
 
   function handleClick() {
     if (onClick) {
@@ -80,8 +89,8 @@
 
   let finalBadgeClass = $derived(badgeClass || getScoreColor(displayScore, isPositive));
   let petriDefaultStyle = $derived(isPetriDefault ? 'border-2 border-base-content/30' : '');
-  // Reviewer edit styling: dashed border when reviewer has modified the score
-  let reviewerEditStyle = $derived(hasReviewerScore ? 'border-2 border-dashed border-secondary/60' : '');
+  // Reviewer edit styling: dashed border when reviewer has made a change (different score or agreed)
+  let reviewerEditStyle = $derived(reviewerMadeChange ? 'border-2 border-dashed border-secondary/60' : '');
   let tooltipText = $derived(description ? extractFirstSentence(description) : undefined);
 
   // Show edit pencil in reviewer mode
@@ -96,10 +105,15 @@
       {id}
       class="badge {finalBadgeClass} {petriDefaultStyle} {reviewerEditStyle} gap-1 p-3 justify-between min-w-0 cursor-help {onClick ? 'cursor-pointer hover:brightness-110' : ''}"
       onclick={handleClick}
-      title={hasReviewerScore ? `Reviewer: ${reviewerScore?.reviewerName} (original: ${score}/10)` : undefined}
+      title={reviewerMadeChange ? `Reviewer: ${reviewerScore?.reviewerName} (original: ${score}/10)` : undefined}
     >
-      {#if hasReviewerScore}
-        <!-- Reviewer icon indicator (inherits text color for visibility on badge background) -->
+      {#if showAgreedCheckmark}
+        <!-- Checkmark icon for "I agree" (inherits text color) -->
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+        </svg>
+      {:else if showUserIcon}
+        <!-- User icon for reviewer edit (inherits text color) -->
         <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
         </svg>
@@ -125,10 +139,15 @@
     {id}
     class="badge {finalBadgeClass} {petriDefaultStyle} {reviewerEditStyle} gap-1 p-3 justify-between min-w-0 {onClick ? 'cursor-pointer hover:brightness-110' : ''}"
     onclick={handleClick}
-    title={hasReviewerScore ? `Reviewer: ${reviewerScore?.reviewerName} (original: ${score}/10)` : undefined}
+    title={reviewerMadeChange ? `Reviewer: ${reviewerScore?.reviewerName} (original: ${score}/10)` : undefined}
   >
-    {#if hasReviewerScore}
-      <!-- Reviewer icon indicator (inherits text color for visibility on badge background) -->
+    {#if showAgreedCheckmark}
+      <!-- Checkmark icon for "I agree" (inherits text color) -->
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+      </svg>
+    {:else if showUserIcon}
+      <!-- User icon for reviewer edit (inherits text color) -->
       <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
       </svg>

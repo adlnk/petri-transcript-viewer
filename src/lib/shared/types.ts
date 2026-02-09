@@ -503,6 +503,7 @@ export interface ReviewerScore {
   justification?: string;
   reviewerName: string;
   timestamp: string;
+  agreedWithJudge?: boolean;  // True if reviewer explicitly agreed with judge's score
 }
 
 export type ReviewerIssueFlag =

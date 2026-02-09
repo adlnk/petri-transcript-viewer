@@ -226,6 +226,7 @@
   let showApiFailures = $state(false);
   let showSharedHistory = $state(true);
   let showSystemPrompt = $state(false);
+  let renderMarkdown = $state(false);
   let showBaselineScores = $state(false);
 
   // Track which justification category sections are expanded (for programmatic control)
@@ -952,16 +953,16 @@
         {/each}
       </div>
 
-      <!-- Auditor Seed Prompt (collapsible) -->
+      <!-- Auditor Seed Prompt (collapsible, starts expanded) -->
       {#if auditorSeedPrompt}
         <div id="section-seed-prompt" class="collapse collapse-arrow bg-base-200 mb-4">
-          <input type="checkbox" />
+          <input type="checkbox" checked />
           <div class="collapse-title text-lg font-semibold">
             Auditor Seed Prompt
           </div>
           <div class="collapse-content">
-            <div class="bg-base-300 p-4 rounded-lg text-sm whitespace-pre-wrap max-h-96 overflow-y-auto">
-              {auditorSeedPrompt}
+            <div class="bg-base-300 p-4 rounded-lg text-sm prose prose-sm max-w-none">
+              {@html md.render(auditorSeedPrompt)}
             </div>
           </div>
         </div>
@@ -1170,26 +1171,6 @@
         </div>
       {/if}
 
-      <!-- Analysis Notes (for comments on judge output and character analysis) -->
-      {#if reviewerStore.can('editNotes')}
-        <div class="mb-4 p-4 bg-primary/5 border border-primary/20 rounded-lg">
-          <h3 class="text-lg font-semibold mb-1">Analysis Notes</h3>
-          <p class="text-xs text-base-content/50 mb-3">Comments on the judge's assessment, scores, or character analysis above.</p>
-          <textarea
-            class="textarea textarea-bordered w-full text-sm"
-            rows="3"
-            placeholder="Any thoughts on the judge's assessment? Do you agree with the scores? Are the citations accurate?"
-            value={reviewerAnnotations?.analysisNotes || ''}
-            oninput={async (e) => {
-              if (reviewerStore.reviewerName) {
-                await setAnalysisNotes(filePath, reviewerStore.reviewerName, e.currentTarget.value);
-                await refreshReviewerAnnotations();
-              }
-            }}
-          ></textarea>
-        </div>
-      {/if}
-
       <!-- System Prompt (Collapsible) -->
       {#if loader.transcript?.systemPrompt}
         <div class="collapse collapse-arrow bg-base-200">
@@ -1236,7 +1217,7 @@
 
       <!-- Additional Controls (only for conversation views) -->
       {#if selectedView !== 'raw'}
-        <div class="flex justify-center mb-4 gap-6">
+        <div class="flex justify-center mb-4 gap-6 flex-wrap">
           <div class="form-control">
             <label class="label cursor-pointer">
               <span class="label-text mr-2">Show API Failures</span>
@@ -1251,6 +1232,12 @@
               </label>
             </div>
           {/if}
+          <div class="form-control">
+            <label class="label cursor-pointer">
+              <span class="label-text mr-2">Render Markdown</span>
+              <input type="checkbox" class="toggle toggle-secondary" bind:checked={renderMarkdown} />
+            </label>
+          </div>
         </div>
       {/if}
       
@@ -1318,12 +1305,19 @@
 {#snippet dimensionJustificationItem(result: SubJudgeResult)}
   {@const scoringCriteria = loader.transcript?.scoreDescriptions?.[result.dimension]}
   {@const reviewerScoreForDim = getReviewerScoreForDimension(result.dimension)}
-  {@const displayedScore = reviewerScoreForDim?.score ?? result.score}
+  {@const reviewerMadeChangeForDim = reviewerScoreForDim !== undefined && (reviewerScoreForDim.score !== result.score || reviewerScoreForDim.agreedWithJudge === true)}
+  {@const displayedScore = reviewerMadeChangeForDim ? reviewerScoreForDim!.score : result.score}
+  {@const showAgreedCheckmarkForDim = reviewerScoreForDim?.agreedWithJudge === true}
+  {@const showUserIconForDim = reviewerMadeChangeForDim && !showAgreedCheckmarkForDim}
   <div id="dimension-justification-{result.dimension}" class="border-l-2 border-base-300 pl-3 py-2">
     <!-- Score badge with dimension name -->
     <div class="flex items-center gap-2 mb-1">
-      <span class={`badge ${getScoreBadgeClass(displayedScore, result.dimension)} ${reviewerScoreForDim ? 'border-2 border-dashed border-secondary/60' : ''}`}>
-        {#if reviewerScoreForDim}
+      <span class={`badge ${getScoreBadgeClass(displayedScore, result.dimension)} ${reviewerMadeChangeForDim ? 'border-2 border-dashed border-secondary/60' : ''}`}>
+        {#if showAgreedCheckmarkForDim}
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+          </svg>
+        {:else if showUserIconForDim}
           <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
           </svg>
@@ -1417,6 +1411,7 @@
           {columnIndex}
           isOpen={isMessageOpen(message.id || '')}
           {isVisible}
+          {renderMarkdown}
           onToggle={toggleMessage}
           onCopy={onCopyAction}
         />

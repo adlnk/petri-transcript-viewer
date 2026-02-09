@@ -20,19 +20,21 @@
     columnIndex: number;
     isOpen: boolean;
     isVisible?: boolean;
+    renderMarkdown?: boolean;  // When true, render markdown in message content
     onToggle: (messageId: string) => void;
     onCopy: (action: CopyAction) => void;
   }
 
 
-  let { 
-    message, 
-    messageIndex, 
-    columnIndex, 
-    isOpen, 
+  let {
+    message,
+    messageIndex,
+    columnIndex,
+    isOpen,
     isVisible = true,
-    onToggle, 
-    onCopy 
+    renderMarkdown: renderMarkdownEnabled = false,
+    onToggle,
+    onCopy
   }: Props = $props();
 
   // Proper text extraction from original code
@@ -429,7 +431,11 @@
 {#snippet systemMessage(message: SystemMessage)}
   {@const textContent = extractTextFromContent(message.content)}
   {#if textContent !== null}
-    <span class="text-gray-900 dark:text-gray-100 whitespace-pre-wrap">{@html highlightXmlTags(textContent)}</span>
+    {#if renderMarkdownEnabled}
+      <div class="prose prose-sm max-w-none dark:prose-invert">{@html renderMarkdown(textContent)}</div>
+    {:else}
+      <span class="text-gray-900 dark:text-gray-100 whitespace-pre-wrap">{@html highlightXmlTags(textContent)}</span>
+    {/if}
   {:else}
     <JsonViewer value={message.content} theme={$themeString} inlineShortContainers={80} />
   {/if}
@@ -439,7 +445,11 @@
 {#snippet userMessage(message: UserMessage)}
   {@const textContent = extractTextFromContent(message.content)}
   {#if textContent !== null}
-    <span class="text-gray-900 dark:text-gray-100 whitespace-pre-wrap">{@html highlightXmlTags(textContent)}</span>
+    {#if renderMarkdownEnabled}
+      <div class="prose prose-sm max-w-none dark:prose-invert">{@html renderMarkdown(textContent)}</div>
+    {:else}
+      <span class="text-gray-900 dark:text-gray-100 whitespace-pre-wrap">{@html highlightXmlTags(textContent)}</span>
+    {/if}
   {:else}
     <JsonViewer value={message.content} theme={$themeString} inlineShortContainers={80} />
   {/if}
@@ -450,15 +460,24 @@
   {@const textContent = extractTextFromContent(message.content)}
   {#if message.reasoning}
     <div class="mt-3 space-y-2">
-      <i>{@html highlightXmlTags(message.reasoning.trim())}</i><!--
- --></div><!--
- --><div class="my-2 border-t border-black/10 dark:border-white/10"></div><!--
- -->{/if}<!--
- -->{#if textContent !== null}<!--
- --> <span class="text-gray-900 dark:text-gray-100 whitespace-pre-wrap">{@html highlightXmlTags(textContent)}</span><!--
- -->{:else}<!--
- --> <JsonViewer value={message.content} theme={$themeString} inlineShortContainers={80} /><!--
--->{/if}{#if message.tool_calls && message.tool_calls.length > 0}
+      {#if renderMarkdownEnabled}
+        <i class="prose prose-sm max-w-none dark:prose-invert">{@html renderMarkdown(message.reasoning.trim())}</i>
+      {:else}
+        <i>{@html highlightXmlTags(message.reasoning.trim())}</i>
+      {/if}
+    </div>
+    <div class="my-2 border-t border-black/10 dark:border-white/10"></div>
+  {/if}
+  {#if textContent !== null}
+    {#if renderMarkdownEnabled}
+      <div class="prose prose-sm max-w-none dark:prose-invert">{@html renderMarkdown(textContent)}</div>
+    {:else}
+      <span class="text-gray-900 dark:text-gray-100 whitespace-pre-wrap">{@html highlightXmlTags(textContent)}</span>
+    {/if}
+  {:else}
+    <JsonViewer value={message.content} theme={$themeString} inlineShortContainers={80} />
+  {/if}
+  {#if message.tool_calls && message.tool_calls.length > 0}
     {@render toolCalls(message.tool_calls)}
   {/if}
 {/snippet}
