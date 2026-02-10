@@ -6,9 +6,10 @@
 
 // Check if we're in static mode (display only)
 const isStaticMode = import.meta.env.VITE_STATIC_MODE === 'true';
+const isReviewerMode = import.meta.env.VITE_REVIEWER_MODE === 'true';
 
-// Admin mode state
-let isAdminMode = $state(!isStaticMode);
+// Admin mode = not static AND not reviewer
+let isAdminMode = $state(!isStaticMode && !isReviewerMode);
 let transcriptDir = $state<string | null>(null);
 let adminInfoLoaded = $state(false);
 

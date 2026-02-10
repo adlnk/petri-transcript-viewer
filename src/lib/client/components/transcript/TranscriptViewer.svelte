@@ -863,21 +863,24 @@
     hasSubJudgeResults={hasSubJudgeResults}
   />
 
-  <!-- Metadata Section - Constrained width -->
-  <div class="p-4 space-y-6">
-    <!-- Header with metadata -->
-    {@render transcriptHeader()}
-    
-    <!-- Conversation Section with controls -->
-    {@render viewControls()}
-  </div>
+  <!-- Main content offset to clear the fixed sidebar -->
+  <div class="ml-20">
+    <!-- Metadata Section - Constrained width -->
+    <div class="p-4 space-y-6">
+      <!-- Header with metadata -->
+      {@render transcriptHeader()}
 
-  <!-- Content Section - Full width -->
-  {#if selectedView === 'raw'}
-    {@render rawJsonView()}
-  {:else}
-    {@render conversationView()}
-  {/if}
+      <!-- Conversation Section with controls -->
+      {@render viewControls()}
+    </div>
+
+    <!-- Content Section - Full width -->
+    {#if selectedView === 'raw'}
+      {@render rawJsonView()}
+    {:else}
+      {@render conversationView()}
+    {/if}
+  </div>
 {/snippet}
 
 <!-- Transcript Header Snippet -->
@@ -945,7 +948,7 @@
                   isPetriDefault={PETRI_DEFAULT_SCORES.has(key)}
                   onClick={handleScoreClick}
                   reviewerScore={getReviewerScoreForDimension(key)}
-                  onEditScore={() => openScoreEditor(key, value, dimensionDisplayNames[key], loader.transcript?.scoreDescriptions?.[key])}
+                  onEditScore={() => openScoreEditor(key, value, dimensionDisplayNames[key], loader.transcript?.scoreInstructions?.[key] || loader.transcript?.scoreDescriptions?.[key])}
                 />
               {/each}
             </div>
@@ -1303,7 +1306,7 @@
 
 <!-- Dimension Justification Item Snippet -->
 {#snippet dimensionJustificationItem(result: SubJudgeResult)}
-  {@const scoringCriteria = loader.transcript?.scoreDescriptions?.[result.dimension]}
+  {@const scoringCriteria = loader.transcript?.scoreInstructions?.[result.dimension] || loader.transcript?.scoreDescriptions?.[result.dimension]}
   {@const reviewerScoreForDim = getReviewerScoreForDimension(result.dimension)}
   {@const reviewerMadeChangeForDim = reviewerScoreForDim !== undefined && (reviewerScoreForDim.score !== result.score || reviewerScoreForDim.agreedWithJudge === true)}
   {@const displayedScore = reviewerMadeChangeForDim ? reviewerScoreForDim!.score : result.score}

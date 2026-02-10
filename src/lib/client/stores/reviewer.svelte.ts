@@ -85,6 +85,7 @@ function getCapabilities(): Set<Capability> {
     caps.add('removeOriginalTags');
     caps.add('editNotes');
     caps.add('toggleShareOnline');
+    caps.add('addReviewerScores');
   }
 
   return caps;

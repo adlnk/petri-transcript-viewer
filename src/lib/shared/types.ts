@@ -282,6 +282,7 @@ export interface JudgeOutput {
   justification?: string;
   scores: Record<string, number>;
   score_descriptions?: Record<string, string>;
+  score_instructions?: Record<string, string>;
   // Coordinator-level citations (highlights)
   highlights?: SubJudgeCitation[];
   // Character analysis (from independent scoring mode)
@@ -340,6 +341,7 @@ export interface TranscriptDisplayMeta {
   scores: Record<string, number>;
   // NOTE: scoreDescriptions removed from list responses (loaded separately from dimension-descriptions.json)
   scoreDescriptions?: Record<string, string>;  // Only populated in detail view
+  scoreInstructions?: Record<string, string>;  // Full judge instructions per dimension
   judgeSummary?: string;      // Removed from list responses for payload optimization
   justification?: string;     // Removed from list responses for payload optimization
   characterAnalysis?: string; // Removed from list responses for payload optimization

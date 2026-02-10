@@ -130,6 +130,7 @@ export function createTranscriptDisplay(
     compactSummary: transcript.metadata.judge_output?.compact_summary,
     scores: transcript.metadata.judge_output?.scores || {},
     scoreDescriptions: transcript.metadata.judge_output?.score_descriptions,
+    scoreInstructions: transcript.metadata.judge_output?.score_instructions,
     judgeSummary: transcript.metadata.judge_output?.summary || 'No judgment summary available',
     justification: transcript.metadata.judge_output?.justification || 'No justification available',
     characterAnalysis: transcript.metadata.judge_output?.character_analysis,
@@ -155,10 +156,10 @@ export function extractTranscriptMetadata(
   // Extract behavior directory (parent folder name) - client-safe version
   const pathParts = filePath.split('/');
   const behaviorDir = pathParts.length > 1 ? pathParts[pathParts.length - 2] : '';
-  // Extract transcript number/name (filename without extension) - client-safe version  
+  // Extract transcript number/name (filename without extension) - client-safe version
   const fileName = pathParts[pathParts.length - 1];
   const transcriptNumber = fileName.endsWith('.json') ? fileName.slice(0, -5) : fileName;
-  
+
   return {
     id: transcript.metadata.transcript_id || transcriptNumber,
     wordId: transcript.metadata.word_id,
@@ -169,6 +170,7 @@ export function extractTranscriptMetadata(
     compactSummary: transcript.metadata.judge_output?.compact_summary,
     scores: transcript.metadata.judge_output?.scores || {},
     scoreDescriptions: transcript.metadata.judge_output?.score_descriptions,
+    scoreInstructions: transcript.metadata.judge_output?.score_instructions,
     judgeSummary: transcript.metadata.judge_output?.summary || 'No judgment summary available',
     justification: transcript.metadata.judge_output?.justification || 'No justification available',
     characterAnalysis: transcript.metadata.judge_output?.character_analysis,
