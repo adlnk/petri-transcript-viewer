@@ -44,6 +44,19 @@
     }
   ];
 
+  // In annotator mode, only show flags that don't reference the judge
+  const ANNOTATOR_HIDDEN_FLAGS: ReviewerIssueFlag[] = [
+    'reviewer:inaccurate_citations',
+    'reviewer:broken_citations',
+    'reviewer:judge_miscalibration',
+  ];
+
+  let visibleOptions = $derived(
+    reviewerStore.isAnnotatorMode
+      ? ISSUE_FLAG_OPTIONS.filter(o => !ANNOTATOR_HIDDEN_FLAGS.includes(o.value))
+      : ISSUE_FLAG_OPTIONS
+  );
+
   let flags = $state<Set<ReviewerIssueFlag>>(new Set());
   let flagNotes = $state<Record<string, string>>({});
   let saving = $state(false);
@@ -93,7 +106,7 @@
   <h4 class="text-sm font-medium text-base-content/70">Issue Flags</h4>
   <p class="text-xs text-base-content/50 mb-2">Check these for common patterns. Checking a box automatically adds the corresponding tag.</p>
   <div class="space-y-2">
-    {#each ISSUE_FLAG_OPTIONS as option}
+    {#each visibleOptions as option}
       <div class="rounded px-2 py-1 -mx-2 hover:bg-base-200">
         <label class="flex items-start gap-2 cursor-pointer">
           <input

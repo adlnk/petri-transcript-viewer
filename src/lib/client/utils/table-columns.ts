@@ -76,7 +76,7 @@ const PRIORITY_SCORE_TYPES = [
 ];
 
 // Use the unified TableRow type directly (no more TreeTableRow duplication)
-export function createColumns(scoreTypes: string[], data: TableRow[] = [], scoreDescriptions: Record<string, string> = {}, isAdminMode: boolean = false, isReviewerMode: boolean = false): ColumnDef<TableRow>[] {
+export function createColumns(scoreTypes: string[], data: TableRow[] = [], scoreDescriptions: Record<string, string> = {}, isAdminMode: boolean = false, isReviewerMode: boolean = false, isAnnotatorMode: boolean = false): ColumnDef<TableRow>[] {
   // Calculate dynamic width for ID column
   const idColumnWidth = calculateIdColumnWidth(data);
 
@@ -245,7 +245,7 @@ export function createColumns(scoreTypes: string[], data: TableRow[] = [], score
     {
       id: 'summary',
       accessorKey: 'summary',
-      header: 'Summary',
+      header: isAnnotatorMode ? 'Seed Prompt' : 'Summary',
       cell: ({ row, getValue }) => {
         if (row.original.type === 'folder') return '';
         // Prefer compactSummary if available, fall back to truncated summary
@@ -301,28 +301,35 @@ export function createColumns(scoreTypes: string[], data: TableRow[] = [], score
     };
   });
 
+  // Annotator mode: no score columns (prevent judge score leakage)
+  if (isAnnotatorMode) {
+    return [...reviewerColumns, ...adminColumns, ...baseColumns];
+  }
   return [...reviewerColumns, ...adminColumns, ...baseColumns, ...scoreColumns];
 }
 
-export function getDefaultColumnVisibility(scoreTypes: string[], isReviewerMode: boolean = false) {
+export function getDefaultColumnVisibility(scoreTypes: string[], isReviewerMode: boolean = false, isAnnotatorMode: boolean = false) {
   const visibility: Record<string, boolean> = {
-    reviewed: isReviewerMode, // Show in reviewer mode
+    reviewed: isReviewerMode,
     id: false,
-    model: true,
-    tags: true,
+    model: !isAnnotatorMode,    // hide model to avoid bias
+    tags: !isAnnotatorMode,     // hide tags to avoid bias
     split: false,
-    summary: true,
+    summary: true,              // repurposed as seed preview in annotator mode
   };
 
-  // Show only priority score columns by default, hide all individual dimension scores
-  scoreTypes.forEach(scoreType => {
-    visibility[`score_${scoreType}`] = PRIORITY_SCORE_TYPES.includes(scoreType);
-  });
+  // Annotator mode: no score columns at all
+  if (!isAnnotatorMode) {
+    // Show only priority score columns by default, hide all individual dimension scores
+    scoreTypes.forEach(scoreType => {
+      visibility[`score_${scoreType}`] = PRIORITY_SCORE_TYPES.includes(scoreType);
+    });
+  }
 
   return visibility;
 }
 
-export function getAllColumnInfo(scoreTypes: string[], isAdminMode: boolean = false, isReviewerMode: boolean = false) {
+export function getAllColumnInfo(scoreTypes: string[], isAdminMode: boolean = false, isReviewerMode: boolean = false, isAnnotatorMode: boolean = false) {
   const reviewerInfo = isReviewerMode ? [
     { id: 'reviewed', header: 'Reviewed' },
   ] : [];
@@ -332,6 +339,11 @@ export function getAllColumnInfo(scoreTypes: string[], isAdminMode: boolean = fa
     { id: 'share', header: 'Share' },
   ] : [];
 
+  const scoreInfo = isAnnotatorMode ? [] : scoreTypes.map(scoreType => ({
+    id: `score_${scoreType}`,
+    header: scoreType.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
+  }));
+
   return [
     ...reviewerInfo,
     ...adminInfo,
@@ -340,9 +352,6 @@ export function getAllColumnInfo(scoreTypes: string[], isAdminMode: boolean = fa
     { id: 'tags', header: 'Tags' },
     { id: 'split', header: 'Split' },
     { id: 'summary', header: 'Summary' },
-    ...scoreTypes.map(scoreType => ({
-      id: `score_${scoreType}`,
-      header: scoreType.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
-    }))
+    ...scoreInfo,
   ];
 }

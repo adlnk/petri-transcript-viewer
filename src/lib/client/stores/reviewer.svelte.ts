@@ -1,9 +1,10 @@
 /**
  * Reviewer mode store for managing reviewer identity and capabilities
  *
- * Three modes:
+ * Four modes:
  * - Static mode (VITE_STATIC_MODE=true): Display only
  * - Reviewer mode (VITE_REVIEWER_MODE=true): Annotation capabilities with restrictions
+ * - Annotator mode (VITE_ANNOTATOR_MODE=true): Blind annotation (no judge scores visible)
  * - Admin mode (neither set): Full editing in Node.js mode
  */
 
@@ -11,7 +12,9 @@ import { browser } from '$app/environment';
 
 // Mode detection from build-time env
 const isStaticMode = import.meta.env.VITE_STATIC_MODE === 'true';
-const isReviewerMode = import.meta.env.VITE_REVIEWER_MODE === 'true';
+const isAnnotatorMode = import.meta.env.VITE_ANNOTATOR_MODE === 'true';
+// Annotator mode implies reviewer capabilities
+const isReviewerMode = import.meta.env.VITE_REVIEWER_MODE === 'true' || isAnnotatorMode;
 
 // Reviewer identity
 const REVIEWER_NAME_KEY = 'reviewer-name';
@@ -99,9 +102,10 @@ function can(capability: Capability): boolean {
 }
 
 // Mode type for display purposes
-export type ViewerMode = 'static' | 'reviewer' | 'admin';
+export type ViewerMode = 'static' | 'reviewer' | 'annotator' | 'admin';
 
 function getCurrentMode(): ViewerMode {
+  if (isAnnotatorMode) return 'annotator';
   if (isReviewerMode) return 'reviewer';
   if (isStaticMode) return 'static';
   return 'admin';
@@ -111,6 +115,7 @@ function getCurrentMode(): ViewerMode {
 export const reviewerStore = {
   get reviewerName() { return reviewerName; },
   get isReviewerMode() { return isReviewerMode; },
+  get isAnnotatorMode() { return isAnnotatorMode; },
   get isStaticMode() { return isStaticMode; },
   get mode() { return getCurrentMode(); },
   setReviewerName,

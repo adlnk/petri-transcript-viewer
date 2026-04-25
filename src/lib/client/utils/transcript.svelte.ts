@@ -5,6 +5,7 @@ import { debugLog } from '$lib/client/utils/debug';
 
 // Check if we're in static mode
 const isStaticMode = import.meta.env.VITE_STATIC_MODE === 'true';
+const isAnnotatorMode = import.meta.env.VITE_ANNOTATOR_MODE === 'true';
 
 // Cache for individually loaded transcripts (lazy loading)
 const transcriptCache = new Map<string, TranscriptDisplayFull>();
@@ -13,6 +14,17 @@ async function fetchIndividualTranscript(filePath: string): Promise<TranscriptDi
   // Check cache first
   const cached = transcriptCache.get(filePath);
   if (cached) return cached;
+
+  // Annotator mode: load from runtime transcript store
+  if (isAnnotatorMode) {
+    const { transcriptLoader } = await import('$lib/client/stores/transcript-loader.svelte');
+    const loaded = transcriptLoader.getFullTranscript(filePath);
+    if (loaded) {
+      transcriptCache.set(filePath, loaded);
+      return loaded;
+    }
+    throw new Error(`Transcript not found in loaded set: ${filePath}`);
+  }
 
   // Fetch individual transcript file from static/transcripts/
   const url = `${base}/transcripts/${filePath}`;
@@ -35,7 +47,7 @@ async function fetchIndividualTranscript(filePath: string): Promise<TranscriptDi
 }
 
 // Transform raw transcript JSON to TranscriptDisplayFull format (mirrors bundle-transcripts.ts logic)
-function createTranscriptDisplayFromRaw(transcript: any, filePath: string): TranscriptDisplayFull {
+export function createTranscriptDisplayFromRaw(transcript: any, filePath: string): TranscriptDisplayFull {
   const targetModel = extractTargetModel(transcript);
   const pathParts = filePath.split('/');
   const behaviorDir = pathParts.length > 1 ? pathParts[pathParts.length - 2] : '';

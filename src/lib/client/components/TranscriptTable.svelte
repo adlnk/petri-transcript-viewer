@@ -116,7 +116,7 @@
     const stored = loadColumnVisibility();
     if (Object.keys(stored).length === 0) {
       // No stored visibility - apply defaults
-      columnVisibility = getDefaultColumnVisibility(scoreTypes, reviewerStore.isReviewerMode);
+      columnVisibility = getDefaultColumnVisibility(scoreTypes, reviewerStore.isReviewerMode, reviewerStore.isAnnotatorMode);
       debugLog('📋 [DEBUG] Applied default column visibility for', scoreTypes.length, 'score types');
     }
     columnVisibilityInitialized = true;
@@ -190,7 +190,7 @@
   // TanStack Table options as a writable store to avoid re-creating the table
   let options = writable<TableOptions<TableRow>>({
     data: [],
-    columns: createColumns(scoreTypes || [], [], scoreDescriptions || {}, adminMode.isAdminMode, reviewerStore.isReviewerMode),
+    columns: createColumns(scoreTypes || [], [], scoreDescriptions || {}, adminMode.isAdminMode, reviewerStore.isReviewerMode, reviewerStore.isAnnotatorMode),
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getSortedRowModel: getSortedRowModel(),
@@ -228,7 +228,7 @@
   // 1) Update data/columns only when inputs change
   $effect(() => {
     const currentData = tableData || [];
-    const currentColumns = createColumns(scoreTypes || [], currentData, scoreDescriptions || {}, adminMode.isAdminMode, reviewerStore.isReviewerMode);
+    const currentColumns = createColumns(scoreTypes || [], currentData, scoreDescriptions || {}, adminMode.isAdminMode, reviewerStore.isReviewerMode, reviewerStore.isAnnotatorMode);
     options.update(old => ({
       ...old,
       data: currentData,
@@ -389,7 +389,7 @@
   // Debug effect (dev only)
   $effect(() => {
     if (!import.meta.env?.DEV) return;
-    const columns = createColumns(scoreTypes || [], tableData || [], scoreDescriptions || {}, adminMode.isAdminMode, reviewerStore.isReviewerMode);
+    const columns = createColumns(scoreTypes || [], tableData || [], scoreDescriptions || {}, adminMode.isAdminMode, reviewerStore.isReviewerMode, reviewerStore.isAnnotatorMode);
     void columns;
   });
 
@@ -425,7 +425,7 @@
   }
 
   // Get all column info for the visibility toggle
-  let allColumnInfo = $derived(getAllColumnInfo(scoreTypes, adminMode.isAdminMode, reviewerStore.isReviewerMode));
+  let allColumnInfo = $derived(getAllColumnInfo(scoreTypes, adminMode.isAdminMode, reviewerStore.isReviewerMode, reviewerStore.isAnnotatorMode));
 </script>
 
 <div class="w-full">

@@ -3,6 +3,7 @@
    * Sticky navigation sidebar for transcript pages
    * Shows icon links to jump to different sections
    */
+  import { reviewerStore } from '$lib/client/stores/reviewer.svelte';
 
   interface NavItem {
     id: string;
@@ -21,29 +22,42 @@
     hasSubJudgeResults = false,
   }: Props = $props();
 
-  // Navigation items (filter reactively based on props)
+  // Navigation items (filter reactively based on props and mode)
   let visibleItems = $derived.by(() => {
     const items: NavItem[] = [
       { id: 'top', label: 'Top' },
-      { id: 'section-scores', label: 'Scores' },
     ];
+
+    // In annotator mode, scores section is at the bottom (after transcript)
+    if (!reviewerStore.isAnnotatorMode) {
+      items.push({ id: 'section-scores', label: 'Scores' });
+    }
 
     if (hasSeedPrompt) {
       items.push({ id: 'section-seed-prompt', label: 'Seed Prompt' });
     }
 
     items.push({ id: 'section-tags', label: 'Tags' });
-    items.push({ id: 'section-judge-summary', label: 'Summary' });
 
-    if (hasSubJudgeResults) {
-      items.push({ id: 'section-dimensions', label: 'Dimensions' });
-    }
+    // Judge-specific sections hidden in annotator mode
+    if (!reviewerStore.isAnnotatorMode) {
+      items.push({ id: 'section-judge-summary', label: 'Summary' });
 
-    if (hasCharacterAnalysis) {
-      items.push({ id: 'section-character', label: 'Character' });
+      if (hasSubJudgeResults) {
+        items.push({ id: 'section-dimensions', label: 'Dimensions' });
+      }
+
+      if (hasCharacterAnalysis) {
+        items.push({ id: 'section-character', label: 'Character' });
+      }
     }
 
     items.push({ id: 'section-transcript', label: 'Transcript' });
+
+    // Scores at end in annotator mode
+    if (reviewerStore.isAnnotatorMode) {
+      items.push({ id: 'section-scores', label: 'Scores' });
+    }
 
     return items;
   });

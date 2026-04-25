@@ -41,9 +41,11 @@
   <div class="min-h-screen flex items-center justify-center bg-base-200">
     <div class="card w-96 bg-base-100 shadow-xl">
       <div class="card-body">
-        <h2 class="card-title justify-center">Transcript Reviewer</h2>
+        <h2 class="card-title justify-center">{reviewerStore.isAnnotatorMode ? 'Transcript Annotator' : 'Transcript Reviewer'}</h2>
         <p class="text-center text-base-content/70 text-sm">
-          Please enter your name to begin reviewing transcripts.
+          {reviewerStore.isAnnotatorMode
+            ? 'Please enter your name to begin annotating transcripts.'
+            : 'Please enter your name to begin reviewing transcripts.'}
         </p>
 
         <form onsubmit={handleSubmit} class="mt-4">
@@ -63,7 +65,7 @@
 
           <div class="card-actions justify-center mt-4">
             <button type="submit" class="btn btn-primary w-full">
-              Start Reviewing
+              {reviewerStore.isAnnotatorMode ? 'Start Annotating' : 'Start Reviewing'}
             </button>
           </div>
         </form>

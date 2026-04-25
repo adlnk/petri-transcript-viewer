@@ -54,11 +54,14 @@ export function parseUrlPath(pathSegments: string[]): string {
   if (filePath.includes('../')) {
     throw new Error('Invalid file path: directory traversal is not allowed');
   }
-  // Require transcript_ prefix on filename (matches server)
-  const lastSlash = filePath.lastIndexOf('/')
-  const filename = lastSlash >= 0 ? filePath.slice(lastSlash + 1) : filePath;
-  if (!filename.startsWith('transcript_')) {
-    throw new Error('Invalid file path: filename must start with "transcript_"');
+  // Require transcript_ prefix on filename (matches server) — relaxed in annotator mode
+  const isAnnotatorMode = import.meta.env.VITE_ANNOTATOR_MODE === 'true';
+  if (!isAnnotatorMode) {
+    const lastSlash = filePath.lastIndexOf('/')
+    const filename = lastSlash >= 0 ? filePath.slice(lastSlash + 1) : filePath;
+    if (!filename.startsWith('transcript_')) {
+      throw new Error('Invalid file path: filename must start with "transcript_"');
+    }
   }
   
   return filePath;

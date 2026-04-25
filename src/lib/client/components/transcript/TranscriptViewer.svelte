@@ -22,6 +22,7 @@
   import ReviewerNotesEditor from '$lib/client/components/reviewer/ReviewerNotesEditor.svelte';
   import ReviewerScoreEditor from '$lib/client/components/reviewer/ReviewerScoreEditor.svelte';
   import IssueFlags from '$lib/client/components/reviewer/IssueFlags.svelte';
+  import AnnotatorScoringPanel from '$lib/client/components/annotator/AnnotatorScoringPanel.svelte';
   import TranscriptNav from './TranscriptNav.svelte';
 
   // Markdown renderer for Character Analysis
@@ -368,7 +369,7 @@
       return [];
     }
     const events = loader.transcript.transcript.events;
-    if (!events) return [];
+    if (!events || events.length === 0) return [];
     return parseTranscriptEvents(events, selectedView, showApiFailures);
   });
 
@@ -880,6 +881,25 @@
     {:else}
       {@render conversationView()}
     {/if}
+
+    <!-- Annotator scoring panel (below transcript) -->
+    {#if reviewerStore.isAnnotatorMode}
+      <div class="p-4 max-w-6xl mx-auto">
+        <div class="card bg-base-100 shadow-sm">
+          <div class="card-body">
+            <AnnotatorScoringPanel
+              {filePath}
+              {dimensionDisplayNames}
+              scoreDescriptions={loader.transcript?.scoreDescriptions || {}}
+              scoreInstructions={loader.transcript?.scoreInstructions || {}}
+              {reviewerAnnotations}
+              onOpenScoreEditor={openScoreEditor}
+              onAnnotationChange={refreshReviewerAnnotations}
+            />
+          </div>
+        </div>
+      </div>
+    {/if}
   </div>
 {/snippet}
 
@@ -890,11 +910,22 @@
       <div class="flex justify-between items-start mb-4">
         <div>
           <h1 class="text-2xl font-bold mb-2">
-            {loader.transcript?.split} - {loader.transcript?.model}
+            {#if reviewerStore.isAnnotatorMode}
+              Transcript
+            {:else}
+              {loader.transcript?.split} - {loader.transcript?.model}
+            {/if}
           </h1>
           <p class="text-base-content/70">
-            Transcript #{loader.transcript?.id}{#if loader.transcript?.wordId}&nbsp;<span class="font-medium">"{loader.transcript.wordId}"</span>{/if}
+            {#if reviewerStore.isAnnotatorMode}
+              {filePath}{#if loader.transcript?.wordId}&nbsp;— <span class="font-medium">"{loader.transcript.wordId}"</span>{/if}
+            {:else}
+              Transcript #{loader.transcript?.id}{#if loader.transcript?.wordId}&nbsp;<span class="font-medium">"{loader.transcript.wordId}"</span>{/if}
+            {/if}
           </p>
+          {#if reviewerStore.isAnnotatorMode && filePath.startsWith('auditbench_')}
+            <p class="text-xs text-base-content/50 mt-1 italic">Note: AuditBench transcripts are formatted differently than standard Petri transcripts. This is not an issue with the tool.</p>
+          {/if}
         </div>
         {#if reviewerStore.can('editNotes')}
           <!-- Review Complete Checkbox -->
@@ -920,8 +951,8 @@
         {/if}
       </div>
 
-      <!-- Transcript Summary (at top, above scores) -->
-      {#if loader.transcript?.compactSummary || loader.transcript?.summary}
+      <!-- Transcript Summary (hidden in annotator mode to avoid bias) -->
+      {#if !reviewerStore.isAnnotatorMode && (loader.transcript?.compactSummary || loader.transcript?.summary)}
         {@const displaySummary = loader.transcript.compactSummary ||
           (loader.transcript.summary.length > 250
             ? loader.transcript.summary.slice(0, 250) + '...'
@@ -931,30 +962,34 @@
         </div>
       {/if}
 
-      <!-- Scores by Category -->
-      <div id="section-scores" class="mb-6 space-y-4">
-        <h3 class="text-lg font-semibold">Scores</h3>
-        {#each categorizeScores(loader.transcript?.scores || {}) as { category, label, items }}
-          <div class="space-y-2">
-            <h4 class="text-sm font-medium text-base-content/70">{label}</h4>
-            <div class="flex flex-wrap gap-2 items-center">
-              {#each items as [key, value]}
-                <ScoreTooltip
-                  id="score-{key}"
-                  score={value}
-                  scoreName={key}
-                  displayName={dimensionDisplayNames[key]}
-                  description={loader.transcript?.scoreDescriptions?.[key]}
-                  isPetriDefault={PETRI_DEFAULT_SCORES.has(key)}
-                  onClick={handleScoreClick}
-                  reviewerScore={getReviewerScoreForDimension(key)}
-                  onEditScore={() => openScoreEditor(key, value, dimensionDisplayNames[key], loader.transcript?.scoreInstructions?.[key] || loader.transcript?.scoreDescriptions?.[key])}
-                />
-              {/each}
+      <!-- Scores (non-annotator mode only; annotator scores go below transcript) -->
+      {#if reviewerStore.isAnnotatorMode}
+        <!-- Annotator scoring panel rendered after the transcript -->
+      {:else}
+        <div id="section-scores" class="mb-6 space-y-4">
+          <h3 class="text-lg font-semibold">Scores</h3>
+          {#each categorizeScores(loader.transcript?.scores || {}) as { category, label, items }}
+            <div class="space-y-2">
+              <h4 class="text-sm font-medium text-base-content/70">{label}</h4>
+              <div class="flex flex-wrap gap-2 items-center">
+                {#each items as [key, value]}
+                  <ScoreTooltip
+                    id="score-{key}"
+                    score={value}
+                    scoreName={key}
+                    displayName={dimensionDisplayNames[key]}
+                    description={loader.transcript?.scoreDescriptions?.[key]}
+                    isPetriDefault={PETRI_DEFAULT_SCORES.has(key)}
+                    onClick={handleScoreClick}
+                    reviewerScore={getReviewerScoreForDimension(key)}
+                    onEditScore={() => openScoreEditor(key, value, dimensionDisplayNames[key], loader.transcript?.scoreInstructions?.[key] || loader.transcript?.scoreDescriptions?.[key])}
+                  />
+                {/each}
+              </div>
             </div>
-          </div>
-        {/each}
-      </div>
+          {/each}
+        </div>
+      {/if}
 
       <!-- Auditor Seed Prompt (collapsible, starts expanded) -->
       {#if auditorSeedPrompt}
@@ -1115,63 +1150,65 @@
         </div>
       {/if}
 
-      <!-- Judge Summary -->
-      <!-- svelte-ignore a11y_click_events_have_key_events -->
-      <!-- svelte-ignore a11y_no_static_element_interactions -->
-      <div id="section-judge-summary" class="mb-4" onclick={handleCitationClick}>
-        <h3 class="text-lg font-semibold mb-2">Judge Summary</h3>
-        <p class="text-sm leading-relaxed whitespace-pre-wrap">{@html renderCitations(loader.transcript?.judgeSummary)}</p>
-      </div>
-
-      <!-- Dimension Justifications / Judge Justification -->
-      <!-- svelte-ignore a11y_click_events_have_key_events -->
-      <!-- svelte-ignore a11y_no_static_element_interactions -->
-      <div id="section-dimensions" class="mb-4" onclick={handleCitationClick}>
-        <h3 class="text-lg font-semibold mb-2">
-          {hasSubJudgeResults ? 'Dimension Justifications' : 'Judge Justification'}
-        </h3>
-
-        {#if hasSubJudgeResults}
-          <!-- Sub-judge results view -->
-          <label class="flex items-center gap-2 mb-4 cursor-pointer">
-            <input type="checkbox" class="toggle toggle-xs" bind:checked={showBaselineScores} />
-            <span class="text-sm text-base-content/70">Show baseline scores (=1)</span>
-          </label>
-
-          {#if filteredSubJudgeResults.length === 0}
-            <p class="text-sm text-base-content/60 italic">All dimensions scored at baseline (1). Toggle above to show details.</p>
-          {:else}
-            <!-- Grouped by category -->
-            {#each categorizedSubJudgeResults as { category, label, items }}
-              <div class="collapse collapse-arrow bg-base-200 mb-2" id="justification-category-{category}">
-                <input
-                  type="checkbox"
-                  checked={expandedJustificationSections.has(category)}
-                  onchange={() => toggleJustificationSection(category)}
-                />
-                <div class="collapse-title font-medium">{label} ({items.length})</div>
-                <div class="collapse-content space-y-3 pt-2">
-                  {#each items as result}
-                    {@render dimensionJustificationItem(result)}
-                  {/each}
-                </div>
-              </div>
-            {/each}
-          {/if}
-        {:else}
-          <!-- Fallback: prose justification from coordinator -->
-          <p class="text-sm leading-relaxed whitespace-pre-wrap">{@html renderJustificationWithScores(loader.transcript?.justification, loader.transcript?.scores || {})}</p>
-        {/if}
-      </div>
-
-      <!-- Character Analysis (from independent scoring mode) -->
-      {#if loader.transcript?.characterAnalysis}
+      {#if !reviewerStore.isAnnotatorMode}
+        <!-- Judge Summary -->
         <!-- svelte-ignore a11y_click_events_have_key_events -->
         <!-- svelte-ignore a11y_no_static_element_interactions -->
-        <div id="section-character" class="mb-4 p-4 bg-base-200 rounded-lg" onclick={handleCitationClick}>
-          <h3 class="text-lg font-semibold mb-2">Character Analysis</h3>
-          <div class="prose prose-sm max-w-none">{@html renderMarkdownWithCitations(loader.transcript.characterAnalysis)}</div>
+        <div id="section-judge-summary" class="mb-4" onclick={handleCitationClick}>
+          <h3 class="text-lg font-semibold mb-2">Judge Summary</h3>
+          <p class="text-sm leading-relaxed whitespace-pre-wrap">{@html renderCitations(loader.transcript?.judgeSummary)}</p>
         </div>
+
+        <!-- Dimension Justifications / Judge Justification -->
+        <!-- svelte-ignore a11y_click_events_have_key_events -->
+        <!-- svelte-ignore a11y_no_static_element_interactions -->
+        <div id="section-dimensions" class="mb-4" onclick={handleCitationClick}>
+          <h3 class="text-lg font-semibold mb-2">
+            {hasSubJudgeResults ? 'Dimension Justifications' : 'Judge Justification'}
+          </h3>
+
+          {#if hasSubJudgeResults}
+            <!-- Sub-judge results view -->
+            <label class="flex items-center gap-2 mb-4 cursor-pointer">
+              <input type="checkbox" class="toggle toggle-xs" bind:checked={showBaselineScores} />
+              <span class="text-sm text-base-content/70">Show baseline scores (=1)</span>
+            </label>
+
+            {#if filteredSubJudgeResults.length === 0}
+              <p class="text-sm text-base-content/60 italic">All dimensions scored at baseline (1). Toggle above to show details.</p>
+            {:else}
+              <!-- Grouped by category -->
+              {#each categorizedSubJudgeResults as { category, label, items }}
+                <div class="collapse collapse-arrow bg-base-200 mb-2" id="justification-category-{category}">
+                  <input
+                    type="checkbox"
+                    checked={expandedJustificationSections.has(category)}
+                    onchange={() => toggleJustificationSection(category)}
+                  />
+                  <div class="collapse-title font-medium">{label} ({items.length})</div>
+                  <div class="collapse-content space-y-3 pt-2">
+                    {#each items as result}
+                      {@render dimensionJustificationItem(result)}
+                    {/each}
+                  </div>
+                </div>
+              {/each}
+            {/if}
+          {:else}
+            <!-- Fallback: prose justification from coordinator -->
+            <p class="text-sm leading-relaxed whitespace-pre-wrap">{@html renderJustificationWithScores(loader.transcript?.justification, loader.transcript?.scores || {})}</p>
+          {/if}
+        </div>
+
+        <!-- Character Analysis (from independent scoring mode) -->
+        {#if loader.transcript?.characterAnalysis}
+          <!-- svelte-ignore a11y_click_events_have_key_events -->
+          <!-- svelte-ignore a11y_no_static_element_interactions -->
+          <div id="section-character" class="mb-4 p-4 bg-base-200 rounded-lg" onclick={handleCitationClick}>
+            <h3 class="text-lg font-semibold mb-2">Character Analysis</h3>
+            <div class="prose prose-sm max-w-none">{@html renderMarkdownWithCitations(loader.transcript.characterAnalysis)}</div>
+          </div>
+        {/if}
       {/if}
 
       <!-- System Prompt (Collapsible) -->

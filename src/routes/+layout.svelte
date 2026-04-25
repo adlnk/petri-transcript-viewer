@@ -6,6 +6,7 @@
 	import { onMount } from 'svelte';
 	import PasswordGate from '$lib/client/components/auth/PasswordGate.svelte';
 	import ReviewerGate from '$lib/client/components/auth/ReviewerGate.svelte';
+	import TranscriptLoaderDialog from '$lib/client/components/annotator/TranscriptLoaderDialog.svelte';
 	import ModeIndicator from '$lib/client/components/admin/ModeIndicator.svelte';
 	import { reviewerStore } from '$lib/client/stores/reviewer.svelte';
 
@@ -32,7 +33,16 @@
 		{#if reviewerStore.isReviewerMode}
 			<ReviewerGate>
 				{#snippet children()}
-					{@render mainContent()}
+					{#if reviewerStore.isAnnotatorMode}
+						<!-- Annotator: load transcripts from folder before showing main content -->
+						<TranscriptLoaderDialog>
+							{#snippet children()}
+								{@render mainContent()}
+							{/snippet}
+						</TranscriptLoaderDialog>
+					{:else}
+						{@render mainContent()}
+					{/if}
 				{/snippet}
 			</ReviewerGate>
 		{:else}

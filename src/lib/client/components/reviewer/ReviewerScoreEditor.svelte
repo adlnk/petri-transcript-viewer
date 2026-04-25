@@ -27,14 +27,14 @@
 
   let { filePath, dimension, displayName, description, judgeScore, judgeJustification, subJudgeResults, existingScore, existingJustification, onSave, onCancel }: Props = $props();
 
-  // Pre-fill with existing score if editing, otherwise default to judge score
-  let score = $state(existingScore ?? judgeScore);
+  // Pre-fill with existing score if editing; annotator defaults to 10 (sentinel), reviewer to judge score
+  let score = $state(existingScore ?? (reviewerStore.isAnnotatorMode ? 10 : judgeScore));
   let justification = $state(existingJustification ?? '');
   let saving = $state(false);
   let error = $state<string | null>(null);
 
-  // "I agree with this score" checkbox - checked if score matches judge score
-  let agreeWithJudge = $state(existingScore === judgeScore);
+  // "I agree with this score" checkbox - not used in annotator mode
+  let agreeWithJudge = $state(reviewerStore.isAnnotatorMode ? false : existingScore === judgeScore);
 
   let name = $derived(displayName || dimension.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()));
   let isEditing = $derived(existingScore !== undefined);
@@ -122,7 +122,7 @@
         dimension,
         score,
         justification: justification.trim() || undefined,
-        agreedWithJudge: agreeWithJudge
+        ...(reviewerStore.isAnnotatorMode ? {} : { agreedWithJudge: agreeWithJudge })
       });
       onSave();
     } catch (err: any) {
@@ -148,7 +148,7 @@
 >
   <div class="card bg-base-100 shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
     <div class="card-body">
-      <h2 class="card-title">{isEditing ? 'Edit' : 'Add'} Reviewer Score</h2>
+      <h2 class="card-title">{isEditing ? 'Edit' : 'Add'} {reviewerStore.isAnnotatorMode ? 'Annotation' : 'Reviewer Score'}</h2>
 
       <!-- Dimension info -->
       <div class="bg-base-200 rounded-lg p-3 mb-2">
@@ -158,61 +158,69 @@
         {/if}
       </div>
 
-      <!-- Scoring criteria (expandable, after dimension info) -->
+      <!-- Scoring criteria -->
       {#if hasFullInstructions}
-        <details class="mb-4">
-          <summary class="text-sm text-base-content/60 hover:text-base-content/80 cursor-pointer select-none">
-            Scoring criteria
-          </summary>
-          <div class="mt-2 p-3 bg-base-200 rounded-lg prose prose-sm max-w-none text-base-content/80">
+        {#if reviewerStore.isAnnotatorMode}
+          <!-- Expanded by default in annotator mode -->
+          <div class="mb-4 p-3 bg-base-200 rounded-lg prose prose-sm max-w-none text-base-content/80">
             {@html md.render(description || '')}
           </div>
-        </details>
+        {:else}
+          <details class="mb-4">
+            <summary class="text-sm text-base-content/60 hover:text-base-content/80 cursor-pointer select-none">
+              Scoring criteria
+            </summary>
+            <div class="mt-2 p-3 bg-base-200 rounded-lg prose prose-sm max-w-none text-base-content/80">
+              {@html md.render(description || '')}
+            </div>
+          </details>
+        {/if}
       {/if}
 
-      <!-- Original judge score (prominent when editing) -->
-      <div class="bg-base-200 rounded-lg p-3 mb-4 flex items-center justify-between">
-        <div>
-          <span class="text-sm text-base-content/70">Judge score:</span>
-          <span class="font-mono font-bold text-lg ml-2">{judgeScore}/10</span>
+      {#if !reviewerStore.isAnnotatorMode}
+        <!-- Original judge score (prominent when editing) -->
+        <div class="bg-base-200 rounded-lg p-3 mb-4 flex items-center justify-between">
+          <div>
+            <span class="text-sm text-base-content/70">Judge score:</span>
+            <span class="font-mono font-bold text-lg ml-2">{judgeScore}/10</span>
+          </div>
+          {#if isEditing && score !== judgeScore}
+            <button
+              type="button"
+              class="btn btn-ghost btn-xs"
+              onclick={handleRevert}
+              title="Revert to judge score"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+              </svg>
+              Revert
+            </button>
+          {/if}
         </div>
-        {#if isEditing && score !== judgeScore}
-          <button
-            type="button"
-            class="btn btn-ghost btn-xs"
-            onclick={handleRevert}
-            title="Revert to judge score"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
-            </svg>
-            Revert
-          </button>
-        {/if}
-      </div>
 
-      <!-- Judge's justification for this dimension -->
-      {#if dimensionJustification}
-        <div class="collapse collapse-arrow bg-base-200 mb-4">
-          <input type="checkbox" checked />
-          <div class="collapse-title text-sm font-medium py-2 min-h-0">
-            {subJudgeResult ? "Judge Model Analysis" : "Judge's Justification"}
+        <!-- Judge's justification for this dimension -->
+        {#if dimensionJustification}
+          <div class="collapse collapse-arrow bg-base-200 mb-4">
+            <input type="checkbox" checked />
+            <div class="collapse-title text-sm font-medium py-2 min-h-0">
+              {subJudgeResult ? "Judge Model Analysis" : "Judge's Justification"}
+            </div>
+            <div class="collapse-content">
+              <p class="text-sm text-base-content/80 whitespace-pre-wrap">{dimensionJustification}</p>
+            </div>
           </div>
-          <div class="collapse-content">
-            <p class="text-sm text-base-content/80 whitespace-pre-wrap">{dimensionJustification}</p>
+        {:else if judgeJustification}
+          <div class="collapse collapse-arrow bg-base-200 mb-4">
+            <input type="checkbox" />
+            <div class="collapse-title text-sm font-medium py-2 min-h-0">
+              Full Coordinator Justification
+            </div>
+            <div class="collapse-content">
+              <p class="text-sm text-base-content/80 whitespace-pre-wrap max-h-48 overflow-y-auto">{judgeJustification}</p>
+            </div>
           </div>
-        </div>
-      {:else if judgeJustification}
-        <!-- Fallback: show full justification if we couldn't extract dimension-specific -->
-        <div class="collapse collapse-arrow bg-base-200 mb-4">
-          <input type="checkbox" />
-          <div class="collapse-title text-sm font-medium py-2 min-h-0">
-            Full Coordinator Justification
-          </div>
-          <div class="collapse-content">
-            <p class="text-sm text-base-content/80 whitespace-pre-wrap max-h-48 overflow-y-auto">{judgeJustification}</p>
-          </div>
-        </div>
+        {/if}
       {/if}
 
       <!-- Score input -->
@@ -235,25 +243,27 @@
         </div>
       </div>
 
-      <!-- I agree with judge checkbox -->
-      <label class="flex items-center gap-2 mb-4 cursor-pointer">
-        <input
-          type="checkbox"
-          class="checkbox checkbox-sm checkbox-primary"
-          checked={agreeWithJudge}
-          onchange={(e) => handleAgreeChange(e.currentTarget.checked)}
-        />
-        <span class="text-sm">I agree with the judge's score</span>
-      </label>
+      {#if !reviewerStore.isAnnotatorMode}
+        <!-- I agree with judge checkbox -->
+        <label class="flex items-center gap-2 mb-4 cursor-pointer">
+          <input
+            type="checkbox"
+            class="checkbox checkbox-sm checkbox-primary"
+            checked={agreeWithJudge}
+            onchange={(e) => handleAgreeChange(e.currentTarget.checked)}
+          />
+          <span class="text-sm">I agree with the judge's score</span>
+        </label>
+      {/if}
 
       <!-- Justification -->
       <div class="form-control mb-4">
         <label class="label">
-          <span class="label-text">Justification (optional)</span>
+          <span class="label-text">{reviewerStore.isAnnotatorMode ? 'Justification (optional if scoring 1)' : 'Justification (optional)'}</span>
         </label>
         <textarea
           class="textarea textarea-bordered h-24"
-          placeholder="Why do you agree/disagree with the judge's score?"
+          placeholder={reviewerStore.isAnnotatorMode ? "Explain your reasoning for this score" : "Why do you agree/disagree with the judge's score?"}
           bind:value={justification}
         ></textarea>
       </div>
