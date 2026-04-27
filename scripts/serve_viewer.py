@@ -45,8 +45,7 @@ def pick_folder_native():
         import tkinter as tk
         from tkinter import filedialog
         root = tk.Tk()
-        root.withdraw()  # hide the main window
-        # Bring dialog to front on macOS
+        root.withdraw()
         root.attributes("-topmost", True)
         folder = filedialog.askdirectory(
             title="Select Transcript Folder",

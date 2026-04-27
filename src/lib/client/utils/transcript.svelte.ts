@@ -15,15 +15,17 @@ async function fetchIndividualTranscript(filePath: string): Promise<TranscriptDi
   const cached = transcriptCache.get(filePath);
   if (cached) return cached;
 
-  // Annotator mode: load from runtime transcript store
-  if (isAnnotatorMode) {
+  // Runtime-loaded transcripts (File System Access API) — any static mode
+  if (isStaticMode) {
     const { transcriptLoader } = await import('$lib/client/stores/transcript-loader.svelte');
-    const loaded = transcriptLoader.getFullTranscript(filePath);
-    if (loaded) {
-      transcriptCache.set(filePath, loaded);
-      return loaded;
+    if (transcriptLoader.loaded) {
+      const loaded = transcriptLoader.getFullTranscript(filePath);
+      if (loaded) {
+        transcriptCache.set(filePath, loaded);
+        return loaded;
+      }
     }
-    throw new Error(`Transcript not found in loaded set: ${filePath}`);
+    // Fall through to standard fetch path
   }
 
   // Fetch individual transcript file from static/transcripts/

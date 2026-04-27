@@ -241,23 +241,24 @@ export function createTranscriptDataLoader() {
   }
 
   async function loadDataBulk(rootDirParam: string, includeErrors: boolean) {
-    // Annotator mode: use runtime-loaded transcripts
-    if (isAnnotatorMode) {
+    // Runtime-loaded transcripts (File System Access API) — works in any static mode
+    if (isStaticMode) {
       const { transcriptLoader } = await import('$lib/client/stores/transcript-loader.svelte');
-      debugLog('[DEBUG] Loading from transcript loader (annotator mode)');
-      rawTranscripts = transcriptLoader.getMetadataList();
-      // Load descriptions from the transcripts themselves
-      const loaderDescs = transcriptLoader.getScoreDescriptions();
-      if (Object.keys(loaderDescs).length > 0) {
-        scoreDescriptions = loaderDescs;
+      if (transcriptLoader.loaded) {
+        debugLog('[DEBUG] Loading from transcript loader (File System Access)');
+        rawTranscripts = transcriptLoader.getMetadataList();
+        const loaderDescs = transcriptLoader.getScoreDescriptions();
+        if (Object.keys(loaderDescs).length > 0) {
+          scoreDescriptions = loaderDescs;
+        }
+        loadingStats = null;
+        loadingErrors = [];
+        debugLog('[DEBUG] Runtime data loaded:', { transcriptCount: rawTranscripts.length });
+        return;
       }
-      loadingStats = null;
-      loadingErrors = [];
-      debugLog('[DEBUG] Annotator data loaded:', { transcriptCount: rawTranscripts.length });
-      return;
     }
 
-    // Static mode: use metadata index (lazy loading)
+    // Static mode: use bundled metadata index
     if (isStaticMode) {
       debugLog('[DEBUG] Loading from metadata index');
       const indexData = await loadMetadataIndex();

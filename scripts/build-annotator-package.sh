@@ -65,21 +65,20 @@ mkdir -p "$OUTPUT_DIR"
 
 cp -r build/* "$OUTPUT_DIR/"
 
-# Copy the Python server script
-cp "$VIEWER_ROOT/scripts/serve_viewer.py" "$OUTPUT_DIR/serve_viewer.py"
-
-# Start scripts (use the Python server with native folder picker)
+# Start scripts (simple HTTP server — annotator uses Chrome File System Access API)
 cat > "$OUTPUT_DIR/start.sh" << 'EOF'
 #!/bin/bash
+PORT="${1:-8080}"
 DIR="$(cd "$(dirname "$0")" && pwd)"
+echo "Starting Transcript Annotator at http://localhost:$PORT"
+echo "Press Ctrl+C to stop"
 cd "$DIR"
-
 if command -v python3 &> /dev/null; then
-    python3 serve_viewer.py --build-dir "$DIR" "$@"
+    python3 -m http.server "$PORT"
 elif command -v python &> /dev/null; then
-    python serve_viewer.py --build-dir "$DIR" "$@"
+    python -m SimpleHTTPServer "$PORT"
 else
-    echo "Error: Python not found. Install Python 3."
+    echo "Error: Python not found."
     exit 1
 fi
 EOF
@@ -87,14 +86,22 @@ chmod +x "$OUTPUT_DIR/start.sh"
 
 cat > "$OUTPUT_DIR/start.bat" << 'EOF'
 @echo off
+set PORT=%1
+if "%PORT%"=="" set PORT=8080
+echo Starting Transcript Annotator at http://localhost:%PORT%
 cd /d "%~dp0"
-python serve_viewer.py --build-dir "%~dp0" %*
+python -m http.server %PORT%
 EOF
 
 cat > "$OUTPUT_DIR/Start Annotator.command" << 'EOF'
 #!/bin/bash
 cd "$(dirname "$0")"
-python3 serve_viewer.py --build-dir "$(pwd)"
+PORT=8080
+echo "Starting Transcript Annotator at http://localhost:$PORT"
+echo "Opening browser..."
+sleep 1
+open "http://localhost:$PORT" 2>/dev/null || echo "Open http://localhost:$PORT in Chrome"
+python3 -m http.server "$PORT"
 EOF
 chmod +x "$OUTPUT_DIR/Start Annotator.command"
 

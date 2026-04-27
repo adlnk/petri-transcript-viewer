@@ -9,6 +9,21 @@
 	import TranscriptLoaderDialog from '$lib/client/components/annotator/TranscriptLoaderDialog.svelte';
 	import ModeIndicator from '$lib/client/components/admin/ModeIndicator.svelte';
 	import { reviewerStore } from '$lib/client/stores/reviewer.svelte';
+	import { transcriptLoader } from '$lib/client/stores/transcript-loader.svelte';
+	import { invalidateListDataCache } from '$lib/shared/services/transcript-data.svelte';
+
+	const isStaticMode = import.meta.env.VITE_STATIC_MODE === 'true';
+	let folderPickerSupported = $derived(browser && transcriptLoader.isSupported());
+
+	async function handleLoadFolder() {
+		await transcriptLoader.loadFromDirectory();
+		if (transcriptLoader.loaded) {
+			// Invalidate the list cache so it reloads from the transcript-loader store
+			invalidateListDataCache();
+			// Navigate to home to trigger reload
+			if (browser) window.location.href = `${base}/`;
+		}
+	}
 
 	let { children } = $props();
 
@@ -58,6 +73,23 @@
 				<a href="{base}/" class="btn btn-ghost text-xl">Petri Transcript Viewer</a>
 			</div>
 			<div class="navbar-end">
+				{#if isStaticMode && folderPickerSupported}
+					<button
+						class="btn btn-ghost btn-sm mr-2"
+						onclick={handleLoadFolder}
+						disabled={transcriptLoader.loading}
+						title={transcriptLoader.loaded ? `Loaded: ${transcriptLoader.folderName} (${transcriptLoader.transcriptCount} transcripts)` : 'Load transcript folder'}
+					>
+						{#if transcriptLoader.loading}
+							<span class="loading loading-spinner loading-xs"></span>
+						{:else}
+							<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z" />
+							</svg>
+						{/if}
+						{transcriptLoader.loaded ? transcriptLoader.folderName : 'Load Folder'}
+					</button>
+				{/if}
 				<label class="swap swap-rotate mr-4">
 					<input type="checkbox" class="hidden" checked={$isDarkMode} onchange={handleThemeToggle} />
 					<!-- Sun icon for light mode -->

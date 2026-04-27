@@ -1,13 +1,12 @@
 <script lang="ts">
   import { transcriptLoader } from '$lib/client/stores/transcript-loader.svelte';
+  import { browser } from '$app/environment';
 
   interface Props {
     children?: import('svelte').Snippet;
   }
 
   let { children }: Props = $props();
-
-  import { browser } from '$app/environment';
 
   let supported = $derived(transcriptLoader.isSupported());
   let currentUrl = $derived(browser ? window.location.href : '');
@@ -58,6 +57,5 @@
     </div>
   </div>
 {:else}
-  <!-- Transcripts loaded — render the main app -->
   {@render children?.()}
 {/if}
