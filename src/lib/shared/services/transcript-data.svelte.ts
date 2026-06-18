@@ -134,7 +134,8 @@ async function loadMetadataIndex() {
 
   const response = await fetch(`${base}/data/metadata-index.json`);
   if (!response.ok) {
-    throw new Error(`Failed to load metadata index: ${response.status}`);
+    // No bundled transcripts — return empty index (use "Load Folder" to load at runtime)
+    return { metadata: [], transcriptCount: 0 };
   }
   metadataIndexCache = await response.json();
   return metadataIndexCache;

@@ -184,11 +184,11 @@
     <!-- Search Query -->
     <div class="form-control mb-4">
       <label class="label">
-        <span class="label-text">Search in summary</span>
+        <span class="label-text">Search</span>
       </label>
       <input
         type="text"
-        placeholder="Search transcripts by summary text..."
+        placeholder="Search by summary, model, word ID, tags..."
         class="input input-bordered w-full"
         bind:value={filterState.value.searchQuery}
       />

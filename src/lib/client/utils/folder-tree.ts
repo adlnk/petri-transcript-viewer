@@ -1,4 +1,5 @@
 import type { FilterState, TableRow } from '$lib/shared/types';
+import { matchesSearchQuery } from '$lib/shared/filter-utils';
 
 /**
  * Extract all transcripts from tree structure using unified TableRow type
@@ -40,7 +41,7 @@ export function filterFolderTree(
         }
         
         // Apply search query filter
-        if (filters.searchQuery && !transcript.summary.toLowerCase().includes(filters.searchQuery.toLowerCase())) {
+        if (filters.searchQuery && !matchesSearchQuery(transcript, filters.searchQuery)) {
           return null;
         }
         

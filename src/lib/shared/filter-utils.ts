@@ -1,5 +1,40 @@
 import { compileExpression } from 'filtrex';
-import type { TranscriptDisplay } from './types';
+import type { TranscriptDisplay, TranscriptDisplayMeta } from './types';
+
+/**
+ * Check if a transcript matches a free-text search query.
+ * Searches across: summary, compactSummary, model, wordId, id, and tags.
+ */
+export function matchesSearchQuery(transcript: TranscriptDisplayMeta, query: string): boolean {
+	if (!query) return true;
+	const q = query.toLowerCase();
+
+	// Text fields to search
+	const fields = [
+		transcript.summary,
+		transcript.compactSummary,
+		transcript.model,
+		transcript.wordId,
+		transcript.id,
+	];
+	for (const field of fields) {
+		if (field && field.toLowerCase().includes(q)) return true;
+	}
+
+	// Tags (exact substring within each tag)
+	if (transcript.tags) {
+		for (const tag of transcript.tags) {
+			if (tag.toLowerCase().includes(q)) return true;
+		}
+	}
+	if (transcript.userTags) {
+		for (const tag of transcript.userTags) {
+			if (tag.toLowerCase().includes(q)) return true;
+		}
+	}
+
+	return false;
+}
 
 /**
  * Check if a model string matches a partial query.

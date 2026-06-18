@@ -10,19 +10,13 @@
 	import ModeIndicator from '$lib/client/components/admin/ModeIndicator.svelte';
 	import { reviewerStore } from '$lib/client/stores/reviewer.svelte';
 	import { transcriptLoader } from '$lib/client/stores/transcript-loader.svelte';
-	import { invalidateListDataCache } from '$lib/shared/services/transcript-data.svelte';
 
 	const isStaticMode = import.meta.env.VITE_STATIC_MODE === 'true';
 	let folderPickerSupported = $derived(browser && transcriptLoader.isSupported());
 
 	async function handleLoadFolder() {
 		await transcriptLoader.loadFromDirectory();
-		if (transcriptLoader.loaded) {
-			// Invalidate the list cache so it reloads from the transcript-loader store
-			invalidateListDataCache();
-			// Navigate to home to trigger reload
-			if (browser) window.location.href = `${base}/`;
-		}
+		// The list page's $effect watches transcriptLoader.transcriptCount and auto-reloads
 	}
 
 	let { children } = $props();

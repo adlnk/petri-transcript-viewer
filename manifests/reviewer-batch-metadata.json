@@ -1,0 +1,65 @@
+{
+  "transcript_dir": "/Users/adelin/Documents/Projects/AF OP Grant/Petri Character/code/experiments/01_claude_soul_attack/02_character_dimension_attacks/transcripts",
+  "filter": "opus_4.5_wave4*",
+  "stratify_tag": "strategy:",
+  "seed": 42,
+  "num_batches": 14,
+  "batches": [
+    {
+      "manifest": "reviewer-batch-01.txt",
+      "count": 29
+    },
+    {
+      "manifest": "reviewer-batch-02.txt",
+      "count": 27
+    },
+    {
+      "manifest": "reviewer-batch-03.txt",
+      "count": 26
+    },
+    {
+      "manifest": "reviewer-batch-04.txt",
+      "count": 25
+    },
+    {
+      "manifest": "reviewer-batch-05.txt",
+      "count": 25
+    },
+    {
+      "manifest": "reviewer-batch-06.txt",
+      "count": 25
+    },
+    {
+      "manifest": "reviewer-batch-07.txt",
+      "count": 24
+    },
+    {
+      "manifest": "reviewer-batch-08.txt",
+      "count": 24
+    },
+    {
+      "manifest": "reviewer-batch-09.txt",
+      "count": 24
+    },
+    {
+      "manifest": "reviewer-batch-10.txt",
+      "count": 22
+    },
+    {
+      "manifest": "reviewer-batch-11.txt",
+      "count": 21
+    },
+    {
+      "manifest": "reviewer-batch-12.txt",
+      "count": 21
+    },
+    {
+      "manifest": "reviewer-batch-13.txt",
+      "count": 21
+    },
+    {
+      "manifest": "reviewer-batch-14.txt",
+      "count": 20
+    }
+  ]
+}

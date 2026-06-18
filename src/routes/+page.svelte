@@ -10,10 +10,11 @@
 	import BulkActionBar from '$lib/client/components/admin/BulkActionBar.svelte';
 	import { filterState, viewSettings, initializeStores } from '$lib/client/stores';
 	import { adminMode } from '$lib/client/stores/admin.svelte';
-	import { createFilterFunction } from '$lib/shared/filter-utils';
+	import { createFilterFunction, matchesSearchQuery } from '$lib/shared/filter-utils';
 	import { createTranscriptDataLoader } from '$lib/shared/services/transcript-data.svelte';
 	import { extractAllTranscriptsFromTree, filterFolderTree } from '$lib/client/utils/folder-tree';
 	import { debugLog } from '$lib/client/utils/debug';
+	import { transcriptLoader } from '$lib/client/stores/transcript-loader.svelte';
 
 	// Create data loader
 	const dataLoader = createTranscriptDataLoader();
@@ -58,6 +59,17 @@
 			if (typeof window !== 'undefined') {
 				dataLoader.loadData('list', currentPath || undefined);
 			}
+		}
+	});
+
+	// Reload when transcripts are loaded via folder picker
+	let previousLoaderCount = $state(0);
+	$effect(() => {
+		const count = transcriptLoader.transcriptCount;
+		if (count > 0 && count !== previousLoaderCount) {
+			previousLoaderCount = count;
+			dataLoader.invalidateCache();
+			dataLoader.loadData('list', currentPath || undefined, true);
 		}
 	});
 
@@ -114,7 +126,7 @@
 	let filteredTranscripts = $derived(dataLoader.transcripts
 		.filter(transcript => {
 			// Apply search query filter
-			if (filterState.value.searchQuery && !transcript.summary.toLowerCase().includes(filterState.value.searchQuery.toLowerCase())) return false;
+			if (filterState.value.searchQuery && !matchesSearchQuery(transcript, filterState.value.searchQuery)) return false;
 			
 			// Apply expression filter
 			return filterFunction(transcript);

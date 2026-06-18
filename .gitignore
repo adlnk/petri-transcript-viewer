@@ -1,7 +1,28 @@
 node_modules/
 .svelte-kit/
 build/
+build-reviewer/
+build-annotator/
 
 # Generated static files (created by bundle-transcripts.ts)
 static/data/
 static/transcripts/
+
+# Local launcher scripts
+*.command
+
+# Built distribution packages
+annotator-package/
+reviewer-package/
+reviewer-batch-*/
+reviewer-wave*/
+annotator-package.zip
+reviewer-package.zip
+reviewer-batch-*.zip
+reviewer-wave*.zip
+
+# Python caches
+__pycache__/
+
+# Local agent config
+.claude/
